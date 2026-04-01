@@ -1,0 +1,9 @@
+name: Bug Report
+description: Report a reproducible bug in NEAT
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+  - type: textarea
+    attributes:
+      label: Reproduction

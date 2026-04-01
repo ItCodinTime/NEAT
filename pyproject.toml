@@ -1,0 +1,105 @@
+[build-system]
+requires = ["scikit-build-core>=0.12", "pybind11>=3.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "neat-optim"
+version = "0.1.0.dev0"
+description = "Nash-Equilibrium Adaptive Training for Keras and scientific Python workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "NEAT Contributors" },
+]
+keywords = ["deep-learning", "optimizer", "keras", "optimization", "training"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: C++",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+keras = [
+  "keras>=3.13,<4",
+]
+dev = [
+  "build>=1.2",
+  "pybind11>=3.0",
+  "pytest>=8.3",
+  "ruff>=0.11",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/NEAT"
+Repository = "https://github.com/your-org/NEAT"
+Issues = "https://github.com/your-org/NEAT/issues"
+Documentation = "https://your-org.github.io/NEAT/"
+
+[tool.scikit-build]
+wheel.packages = ["src/neat_optim"]
+sdist.include = [
+  "src/neat_optim/**",
+  "cpp/**",
+  "tests/**",
+  "examples/**",
+  "docs/**",
+  "benchmarks/**",
+  "scripts/**",
+  ".github/**",
+  "README.md",
+  "LICENSE",
+  "CHANGELOG.md",
+  "CONTRIBUTING.md",
+  "mkdocs.yml",
+]
+build-dir = "build/{wheel_tag}"
+
+[tool.scikit-build.cmake]
+version = ">=3.20"
+source-dir = "cpp"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = ["src", "tests", "examples", "benchmarks"]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "B",
+  "UP",
+  "N",
+  "SIM",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.cibuildwheel]
+build = ["cp310-*", "cp311-*", "cp312-*"]
+skip = ["*-win32", "*-manylinux_i686", "cp313-*"]
+test-command = "pytest {project}/tests/unit -q"
+test-extras = ["dev"]
