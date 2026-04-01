@@ -1,0 +1,17 @@
+site_name = NEAT
+site_description = Nash-Equilibrium Adaptive Training
+repo_url = https://github.com/your-org/NEAT
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - API: api.md
+  - Research:
+      - Math Spec: research/math-spec.md
+      - Algorithm: research/algorithm.md
+      - Benchmarks: research/benchmarks.md
+  - Contributing:
+      - Development: contributing/development.md
+      - Architecture: contributing/architecture.md
+      - Release: contributing/release.md
