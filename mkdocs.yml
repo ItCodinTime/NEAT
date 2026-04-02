@@ -1,6 +1,6 @@
-site_name = NEAT
-site_description = Nash-Equilibrium Adaptive Training
-repo_url = https://github.com/your-org/NEAT
+site_name: NEAT
+site_description: Nash-Equilibrium Adaptive Training
+repo_url: https://github.com/your-org/NEAT
 theme:
   name: material
 nav:
