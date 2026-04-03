@@ -2,6 +2,7 @@
 .pytest_cache/
 .ruff_cache/
 .venv/
+.venv312/
 build/
 dist/
 *.egg-info/
