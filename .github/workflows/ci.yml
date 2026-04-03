@@ -24,3 +24,38 @@ jobs:
         run: ruff check .
       - name: Test
         run: pytest
+
+  keras-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,keras]"
+          pip install tensorflow
+      - name: Keras integration tests
+        run: pytest tests/integration/test_keras_optimizer.py -q
+      - name: Keras example smoke test
+        run: python examples/keras_manual_apply.py
+
+  package-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          python -m build
+      - name: Smoke install wheel
+        run: |
+          python -m venv /tmp/neat-wheel-smoke
+          /tmp/neat-wheel-smoke/bin/pip install dist/*.whl
+          /tmp/neat-wheel-smoke/bin/python scripts/smoke_install.py
