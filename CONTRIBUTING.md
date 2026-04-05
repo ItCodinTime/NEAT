@@ -39,6 +39,12 @@ pytest
 python -m build
 ```
 
+For a release candidate, also run the docs build:
+
+```bash
+mkdocs build --strict
+```
+
 ## Pull Requests
 
 - Explain the user-facing effect.

@@ -38,7 +38,10 @@ class NEAT(keras.optimizers.Optimizer):
         )
         super().__init__(
             learning_rate=learning_rate,
-            weight_decay=None if decouple_weight_decay else weight_decay,
+            # NEAT applies weight decay explicitly inside update_step so the
+            # coupled and decoupled paths stay aligned with the reference
+            # engine instead of also triggering Keras base-class decay.
+            weight_decay=None,
             name=name,
             **kwargs,
         )
