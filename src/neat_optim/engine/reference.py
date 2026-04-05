@@ -3,55 +3,71 @@ from __future__ import annotations
 import numpy as np
 
 from neat_optim.config import NEATConfig
+from neat_optim.engine.common import (
+    active_fraction,
+    apply_sparsity,
+    as_float32,
+    clip_correction,
+    conflict_ratio,
+    cosine_similarity,
+    safe_projection,
+    safe_ratio,
+    update_ema,
+)
 from neat_optim.state import ArrayState, StepMetrics, StepResult
 from neat_optim.utils.metrics import l2_norm
-
-
-def _as_float32(array: np.ndarray) -> np.ndarray:
-    return np.asarray(array, dtype=np.float32)
-
-
-def _flat_dot(left: np.ndarray, right: np.ndarray) -> float:
-    return float(np.dot(left.reshape(-1), right.reshape(-1)))
 
 
 def _safe_projection(
     gradient: np.ndarray, vector: np.ndarray, eps: float
 ) -> np.ndarray:
-    denom = _flat_dot(vector, vector)
-    if denom <= eps:
-        return np.zeros_like(gradient)
-    return (_flat_dot(gradient, vector) / (denom + eps)) * vector
+    return safe_projection(gradient, vector, eps)
 
 
 def _conflict_ratio(gradient: np.ndarray, vector: np.ndarray, eps: float) -> float:
-    grad_norm = l2_norm(gradient)
-    vec_norm = l2_norm(vector)
-    if grad_norm <= eps or vec_norm <= eps:
-        return 0.0
-    cosine = _flat_dot(gradient, vector) / ((grad_norm * vec_norm) + eps)
-    return max(0.0, -cosine)
+    return conflict_ratio(gradient, vector, eps)
 
 
 def _compute_nce(
-    gradient: np.ndarray, momentum: np.ndarray, config: NEATConfig
+    gradient: np.ndarray,
+    opponent: np.ndarray,
+    state_step: int,
+    config: NEATConfig,
 ) -> tuple[np.ndarray, float]:
     if config.nce_mode == "off":
         return np.zeros_like(gradient), 0.0
+    if state_step < config.correction_warmup_steps:
+        return np.zeros_like(gradient), 0.0
+
+    conflict = _conflict_ratio(gradient, opponent, config.eps)
+    if conflict < config.conflict_threshold:
+        return np.zeros_like(gradient), conflict
     if config.nce_mode == "cosine":
-        conflict_ratio = _conflict_ratio(gradient, momentum, config.eps)
         direction = gradient
     else:
-        conflict_ratio = _conflict_ratio(gradient, momentum, config.eps)
-        direction = _safe_projection(gradient, momentum, config.eps)
+        direction = _safe_projection(gradient, opponent, config.eps)
 
-    correction = -config.alpha * conflict_ratio * direction
-    grad_norm = l2_norm(gradient)
-    correction_norm = l2_norm(correction)
-    clip_limit = config.nce_clip_ratio * grad_norm
-    if correction_norm > clip_limit and correction_norm > config.eps:
-        correction = correction * (clip_limit / correction_norm)
-    return correction.astype(np.float32, copy=False), conflict_ratio
+    correction = -config.alpha * conflict * direction
+    return clip_correction(
+        correction,
+        gradient,
+        clip_ratio=config.nce_clip_ratio,
+        eps=config.eps,
+    ), conflict
+
+
+def _opponent_signal(
+    gradient: np.ndarray,
+    state: ArrayState,
+    config: NEATConfig,
+) -> np.ndarray:
+    if config.opponent_source == "previous_gradient":
+        previous = state.previous_gradient
+        return np.zeros_like(gradient) if previous is None else as_float32(previous)
+    if config.opponent_source == "gradient_ema":
+        ema = state.gradient_ema
+        return np.zeros_like(gradient) if ema is None else as_float32(ema)
+    return as_float32(state.momentum)
 
 
 def neat_step_reference(
@@ -62,11 +78,17 @@ def neat_step_reference(
 ) -> StepResult:
     """Apply one NEAT step over NumPy arrays."""
 
-    param32 = _as_float32(param).copy()
-    grad32 = _as_float32(grad)
-    momentum = _as_float32(state.momentum).copy()
+    param32 = as_float32(param).copy()
+    grad32 = as_float32(grad)
+    momentum = as_float32(state.momentum).copy()
+    gradient_ema = (
+        np.zeros_like(grad32)
+        if state.gradient_ema is None
+        else as_float32(state.gradient_ema).copy()
+    )
 
-    nce, conflict_ratio = _compute_nce(grad32, momentum, config)
+    opponent = _opponent_signal(grad32, state, config)
+    nce, conflict = _compute_nce(grad32, opponent, state.step, config)
     update_direction = grad32 + nce
     next_momentum = (config.beta * momentum) + ((1.0 - config.beta) * update_direction)
 
@@ -76,17 +98,32 @@ def neat_step_reference(
     else:
         effective_grad = next_momentum + (config.weight_decay * param32)
         next_param = param32 - (config.learning_rate * effective_grad)
+    next_param = apply_sparsity(
+        next_param,
+        learning_rate=config.learning_rate,
+        sparsity_l1=config.sparsity_l1,
+        prune_threshold=config.prune_threshold,
+    )
 
     next_state = ArrayState(
         momentum=next_momentum.astype(np.float32, copy=False),
         nce=nce.astype(np.float32, copy=False),
+        previous_gradient=grad32.astype(np.float32, copy=False),
+        gradient_ema=update_ema(gradient_ema, grad32, config.opponent_ema_decay),
         step=state.step + 1,
     )
+    grad_norm = l2_norm(grad32)
+    nce_norm = l2_norm(nce)
     metrics = StepMetrics(
-        grad_norm=l2_norm(grad32),
+        grad_norm=grad_norm,
         update_norm=l2_norm(next_momentum),
-        nce_norm=l2_norm(nce),
-        conflict_ratio=conflict_ratio,
+        nce_norm=nce_norm,
+        conflict_ratio=conflict,
+        active_fraction=active_fraction(next_param),
+        opponent_norm=l2_norm(opponent),
+        correction_ratio=safe_ratio(nce_norm, grad_norm, config.eps),
+        update_alignment=cosine_similarity(grad32, update_direction, config.eps),
+        correction_active=1.0 if nce_norm > config.eps else 0.0,
     )
     return StepResult(
         param=next_param.astype(np.float32, copy=False),

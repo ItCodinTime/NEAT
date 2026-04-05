@@ -1,0 +1,52 @@
+{
+  "date": "2026-04-05",
+  "task": "digits_lightweight_neat",
+  "optimizer": {
+    "learning_rate": 0.05,
+    "alpha": 0.25,
+    "beta": 0.9,
+    "nce_mode": "projection",
+    "sparsity_l1": 0.001,
+    "prune_threshold": 0.005
+  },
+  "compaction_threshold": 0.16,
+  "base": {
+    "test_loss": 0.19135750830173492,
+    "test_accuracy": 0.9527778029441833,
+    "param_count": 17226,
+    "nonzero_count": 14430,
+    "keras_file_bytes": 377110,
+    "mean_inference_seconds": 0.005260541680036113,
+    "hidden_units": [
+      128,
+      64
+    ]
+  },
+  "compacted": {
+    "test_loss": 0.19456547498703003,
+    "test_accuracy": 0.9527778029441833,
+    "param_count": 16313,
+    "nonzero_count": 13657,
+    "keras_file_bytes": 154183,
+    "mean_inference_seconds": 0.005874978319916409,
+    "hidden_units": [
+      123,
+      62
+    ]
+  },
+  "report": {
+    "original_hidden_units": [
+      128,
+      64
+    ],
+    "compacted_hidden_units": [
+      123,
+      62
+    ],
+    "original_param_count": 17226,
+    "compacted_param_count": 16313,
+    "original_nonzero_count": 14430,
+    "compacted_nonzero_count": 13657,
+    "unit_threshold": 0.16
+  }
+}
