@@ -29,6 +29,21 @@ class DenseCompactionReport:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class DenseCompactionSearchResult:
+    """Best accepted compaction candidate under a user-supplied score floor."""
+
+    threshold: float | None
+    baseline_score: float
+    compacted_score: float | None
+    accepted: bool
+    report: DenseCompactionReport | None
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a plain serializable mapping."""
+        return asdict(self)
+
+
 def _keras():
     import keras
 
@@ -185,6 +200,59 @@ def compact_dense_model(
         unit_threshold=float(unit_threshold),
     )
     return compacted, report
+
+
+def search_compact_dense_model(
+    model,
+    *,
+    thresholds: tuple[float, ...] | list[float],
+    scorer,
+    min_score: float | None = None,
+) -> tuple[Any, DenseCompactionSearchResult]:
+    """Return the smallest accepted compacted model under `scorer`.
+
+    `scorer` must accept a Keras model and return a scalar score where higher is
+    better. Candidates are accepted when `score >= min_score`; if `min_score` is
+    omitted, the baseline model score is used.
+    """
+
+    baseline_score = float(scorer(model))
+    required_score = baseline_score if min_score is None else float(min_score)
+    best_model = model
+    best_result = DenseCompactionSearchResult(
+        threshold=None,
+        baseline_score=baseline_score,
+        compacted_score=None,
+        accepted=False,
+        report=None,
+    )
+    best_param_count = int(model.count_params())
+    best_nonzero_count = count_nonzero_model_params(model)
+    for threshold in thresholds:
+        compacted, report = compact_dense_model(model, unit_threshold=float(threshold))
+        score = float(scorer(compacted))
+        if score < required_score:
+            continue
+        candidate_param_count = report.compacted_param_count
+        candidate_nonzero_count = report.compacted_nonzero_count
+        if (
+            candidate_param_count < best_param_count
+            or (
+                candidate_param_count == best_param_count
+                and candidate_nonzero_count < best_nonzero_count
+            )
+        ):
+            best_model = compacted
+            best_param_count = candidate_param_count
+            best_nonzero_count = candidate_nonzero_count
+            best_result = DenseCompactionSearchResult(
+                threshold=float(threshold),
+                baseline_score=baseline_score,
+                compacted_score=score,
+                accepted=True,
+                report=report,
+            )
+    return best_model, best_result
 
 
 def measure_keras_file_size(model) -> int:
