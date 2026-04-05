@@ -71,8 +71,13 @@ def test_keras_optimizer_config_round_trip() -> None:
         prune_threshold=1e-3,
         opponent_source="gradient_ema",
         opponent_ema_decay=0.8,
+        opponent_blend=0.4,
         correction_warmup_steps=2,
         conflict_threshold=0.1,
+        adaptive_correction=True,
+        adaptive_correction_decay=0.75,
+        adaptive_correction_min_scale=1.0,
+        adaptive_correction_max_scale=2.0,
     )
     clone = NEAT.from_config(optimizer.get_config())
     assert clone.get_config()["alpha"] == pytest.approx(0.2)
@@ -85,8 +90,13 @@ def test_keras_optimizer_config_round_trip() -> None:
     assert clone.get_config()["prune_threshold"] == pytest.approx(1e-3)
     assert clone.get_config()["opponent_source"] == "gradient_ema"
     assert clone.get_config()["opponent_ema_decay"] == pytest.approx(0.8)
+    assert clone.get_config()["opponent_blend"] == pytest.approx(0.4)
     assert clone.get_config()["correction_warmup_steps"] == 2
     assert clone.get_config()["conflict_threshold"] == pytest.approx(0.1)
+    assert clone.get_config()["adaptive_correction"] is True
+    assert clone.get_config()["adaptive_correction_decay"] == pytest.approx(0.75)
+    assert clone.get_config()["adaptive_correction_min_scale"] == pytest.approx(1.0)
+    assert clone.get_config()["adaptive_correction_max_scale"] == pytest.approx(2.0)
 
 
 def test_keras_optimizer_matches_reference_projection_mode() -> None:
@@ -279,6 +289,51 @@ def test_keras_optimizer_matches_reference_with_previous_gradient_opponent() -> 
     snapshot = optimizer.diagnostic_snapshot()
     assert snapshot["mean_conflict_ratio"] >= 0.0
     assert snapshot["mean_correction_ratio"] >= 0.0
+
+
+def test_keras_optimizer_matches_reference_with_blended_adaptive_opponent() -> None:
+    initial_param = np.array([1.0, 2.0], dtype=np.float32)
+    gradients = [
+        np.array([0.5, 0.0], dtype=np.float32),
+        np.array([-1.0, 0.0], dtype=np.float32),
+        np.array([1.0, 0.0], dtype=np.float32),
+    ]
+
+    optimizer, keras_param = _run_keras(
+        initial_param,
+        gradients,
+        learning_rate=0.1,
+        alpha=0.5,
+        beta=0.0,
+        opponent_source="blended",
+        opponent_blend=0.25,
+        adaptive_correction=True,
+        adaptive_correction_decay=0.5,
+        adaptive_correction_min_scale=1.0,
+        adaptive_correction_max_scale=2.5,
+    )
+    reference = _run_reference(
+        initial_param,
+        gradients,
+        learning_rate=0.1,
+        alpha=0.5,
+        beta=0.0,
+        opponent_source="blended",
+        opponent_blend=0.25,
+        adaptive_correction=True,
+        adaptive_correction_decay=0.5,
+        adaptive_correction_min_scale=1.0,
+        adaptive_correction_max_scale=2.5,
+    )
+
+    np.testing.assert_allclose(keras_param, reference.param, atol=1e-6)
+    np.testing.assert_allclose(
+        _to_numpy(optimizer.nces[0]),
+        reference.state.nce,
+        atol=1e-6,
+    )
+    snapshot = optimizer.diagnostic_snapshot()
+    assert snapshot["mean_correction_ratio"] > 0.0
 
 
 def test_keras_optimizer_reports_zero_correction_when_nce_is_disabled() -> None:

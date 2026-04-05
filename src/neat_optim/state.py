@@ -15,6 +15,7 @@ class ArrayState:
     nce: np.ndarray
     previous_gradient: np.ndarray | None = None
     gradient_ema: np.ndarray | None = None
+    conflict_ema: float = 0.0
     step: int = 0
 
     @classmethod
@@ -25,6 +26,7 @@ class ArrayState:
             nce=np.zeros_like(array, dtype=np.float32),
             previous_gradient=np.zeros_like(array, dtype=np.float32),
             gradient_ema=np.zeros_like(array, dtype=np.float32),
+            conflict_ema=0.0,
             step=0,
         )
 

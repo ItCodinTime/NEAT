@@ -36,8 +36,13 @@ def neat_step(
         and config.sparsity_l1 == 0.0
         and config.prune_threshold == 0.0
         and config.opponent_source == "momentum"
+        and config.opponent_blend == 0.5
         and config.correction_warmup_steps == 0
         and config.conflict_threshold == 0.0
+        and not config.adaptive_correction
+        and config.adaptive_correction_decay == 0.9
+        and config.adaptive_correction_min_scale == 1.0
+        and config.adaptive_correction_max_scale == 3.0
     ):
         try:
             pre_momentum = as_float32(state.momentum).copy()

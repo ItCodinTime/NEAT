@@ -26,8 +26,13 @@ class NEAT(keras.optimizers.Optimizer):
         prune_threshold: float = 0.0,
         opponent_source: str = "momentum",
         opponent_ema_decay: float = 0.9,
+        opponent_blend: float = 0.5,
         correction_warmup_steps: int = 0,
         conflict_threshold: float = 0.0,
+        adaptive_correction: bool = False,
+        adaptive_correction_decay: float = 0.9,
+        adaptive_correction_min_scale: float = 1.0,
+        adaptive_correction_max_scale: float = 3.0,
         name: str = "NEAT",
         **kwargs: Any,
     ) -> None:
@@ -44,8 +49,13 @@ class NEAT(keras.optimizers.Optimizer):
             prune_threshold=prune_threshold,
             opponent_source=opponent_source,
             opponent_ema_decay=opponent_ema_decay,
+            opponent_blend=opponent_blend,
             correction_warmup_steps=correction_warmup_steps,
             conflict_threshold=conflict_threshold,
+            adaptive_correction=adaptive_correction,
+            adaptive_correction_decay=adaptive_correction_decay,
+            adaptive_correction_min_scale=adaptive_correction_min_scale,
+            adaptive_correction_max_scale=adaptive_correction_max_scale,
             native="never",
         )
         super().__init__(
@@ -68,13 +78,19 @@ class NEAT(keras.optimizers.Optimizer):
         self.prune_threshold = config.prune_threshold
         self.opponent_source = config.opponent_source
         self.opponent_ema_decay = config.opponent_ema_decay
+        self.opponent_blend = config.opponent_blend
         self.correction_warmup_steps = config.correction_warmup_steps
         self.conflict_threshold = config.conflict_threshold
+        self.adaptive_correction = config.adaptive_correction
+        self.adaptive_correction_decay = config.adaptive_correction_decay
+        self.adaptive_correction_min_scale = config.adaptive_correction_min_scale
+        self.adaptive_correction_max_scale = config.adaptive_correction_max_scale
         self.spec_version = "nce_spec_v1"
         self.momentums = []
         self.nces = []
         self.previous_gradients = []
         self.gradient_emas = []
+        self.conflict_emas = []
         self.diagnostic_conflict_sum = None
         self.diagnostic_correction_ratio_sum = None
         self.diagnostic_update_alignment_sum = None
@@ -90,6 +106,7 @@ class NEAT(keras.optimizers.Optimizer):
         self.nces = self.add_optimizer_variables(variables, "nce")
         self.previous_gradients = self.add_optimizer_variables(variables, "prev_grad")
         self.gradient_emas = self.add_optimizer_variables(variables, "grad_ema")
+        self.conflict_emas = self.add_optimizer_variables(variables, "conflict_ema")
         self.diagnostic_conflict_sum = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_conflict_sum"
         )
@@ -125,7 +142,10 @@ class NEAT(keras.optimizers.Optimizer):
         return ops.sum(left * right) / ((left_norm * right_norm) + self.eps)
 
     def _opponent_signal(self, gradient, momentum, previous_gradient, gradient_ema):
-        del gradient
+        if self.opponent_source == "blended":
+            blend = ops.cast(self.opponent_blend, gradient.dtype)
+            one = ops.cast(1.0, gradient.dtype)
+            return (blend * momentum) + ((one - blend) * gradient_ema)
         if self.opponent_source == "previous_gradient":
             return previous_gradient
         if self.opponent_source == "gradient_ema":
@@ -138,7 +158,20 @@ class NEAT(keras.optimizers.Optimizer):
         cosine = ops.sum(gradient * momentum) / ((grad_norm * momentum_norm) + self.eps)
         return ops.maximum(ops.cast(0.0, gradient.dtype), -cosine)
 
-    def _compute_nce(self, gradient, opponent, step):
+    def _adaptive_scale(self, gradient, opponent, conflict_ratio, conflict_ema):
+        if not self.adaptive_correction:
+            return ops.cast(1.0, gradient.dtype)
+
+        grad_norm = self._l2_norm(gradient)
+        opponent_norm = self._l2_norm(opponent)
+        reliability = opponent_norm / (grad_norm + opponent_norm + self.eps)
+        signal = ops.maximum(conflict_ratio, conflict_ema)
+        scale = ops.cast(1.0, gradient.dtype) + reliability + signal
+        min_scale = ops.cast(self.adaptive_correction_min_scale, gradient.dtype)
+        max_scale = ops.cast(self.adaptive_correction_max_scale, gradient.dtype)
+        return ops.clip(scale, min_scale, max_scale)
+
+    def _compute_nce(self, gradient, opponent, step, conflict_ema):
         if self.nce_mode == "off":
             return ops.zeros_like(gradient), ops.cast(0.0, gradient.dtype)
 
@@ -148,7 +181,18 @@ class NEAT(keras.optimizers.Optimizer):
         else:
             direction = self._projection(gradient, opponent)
 
-        correction = -ops.cast(self.alpha, gradient.dtype) * conflict_ratio * direction
+        adaptive_scale = self._adaptive_scale(
+            gradient,
+            opponent,
+            conflict_ratio,
+            conflict_ema,
+        )
+        correction = (
+            -ops.cast(self.alpha, gradient.dtype)
+            * adaptive_scale
+            * conflict_ratio
+            * direction
+        )
         correction_norm = self._l2_norm(correction)
         grad_norm = self._l2_norm(gradient)
         clip_limit = ops.cast(self.nce_clip_ratio, gradient.dtype) * grad_norm
@@ -199,17 +243,25 @@ class NEAT(keras.optimizers.Optimizer):
         nce = self.nces[index]
         previous_gradient = self.previous_gradients[index]
         gradient_ema = self.gradient_emas[index]
+        conflict_ema = self.conflict_emas[index]
         opponent = self._opponent_signal(
             gradient,
             momentum,
             previous_gradient,
             gradient_ema,
         )
+        current_conflict = self._conflict_ratio(gradient, opponent)
+        next_conflict_ema = (
+            ops.cast(self.adaptive_correction_decay, variable.dtype) * conflict_ema
+            + ops.cast(1.0 - self.adaptive_correction_decay, variable.dtype)
+            * current_conflict
+        )
 
         correction, conflict_ratio = self._compute_nce(
             gradient,
             opponent,
             self.iterations,
+            next_conflict_ema,
         )
         update_direction = gradient + correction
         next_momentum = (
@@ -225,6 +277,7 @@ class NEAT(keras.optimizers.Optimizer):
         )
         self.assign(previous_gradient, gradient)
         self.assign(gradient_ema, next_grad_ema)
+        self.assign(conflict_ema, next_conflict_ema)
 
         if self.decouple_weight_decay and self.neat_weight_decay:
             decay = ops.cast(self.neat_weight_decay, variable.dtype)
@@ -318,8 +371,13 @@ class NEAT(keras.optimizers.Optimizer):
                 "prune_threshold": self.prune_threshold,
                 "opponent_source": self.opponent_source,
                 "opponent_ema_decay": self.opponent_ema_decay,
+                "opponent_blend": self.opponent_blend,
                 "correction_warmup_steps": self.correction_warmup_steps,
                 "conflict_threshold": self.conflict_threshold,
+                "adaptive_correction": self.adaptive_correction,
+                "adaptive_correction_decay": self.adaptive_correction_decay,
+                "adaptive_correction_min_scale": self.adaptive_correction_min_scale,
+                "adaptive_correction_max_scale": self.adaptive_correction_max_scale,
             }
         )
         return config

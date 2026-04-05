@@ -14,8 +14,13 @@ def test_valid_config_round_trip() -> None:
         prune_threshold=1e-3,
         opponent_source="gradient_ema",
         opponent_ema_decay=0.8,
+        opponent_blend=0.3,
         correction_warmup_steps=2,
         conflict_threshold=0.1,
+        adaptive_correction=True,
+        adaptive_correction_decay=0.8,
+        adaptive_correction_min_scale=1.0,
+        adaptive_correction_max_scale=2.5,
     )
     payload = config.as_dict()
     assert payload["learning_rate"] == pytest.approx(1e-2)
@@ -26,8 +31,13 @@ def test_valid_config_round_trip() -> None:
     assert payload["prune_threshold"] == pytest.approx(1e-3)
     assert payload["opponent_source"] == "gradient_ema"
     assert payload["opponent_ema_decay"] == pytest.approx(0.8)
+    assert payload["opponent_blend"] == pytest.approx(0.3)
     assert payload["correction_warmup_steps"] == 2
     assert payload["conflict_threshold"] == pytest.approx(0.1)
+    assert payload["adaptive_correction"] is True
+    assert payload["adaptive_correction_decay"] == pytest.approx(0.8)
+    assert payload["adaptive_correction_min_scale"] == pytest.approx(1.0)
+    assert payload["adaptive_correction_max_scale"] == pytest.approx(2.5)
 
 
 @pytest.mark.parametrize(
@@ -42,8 +52,11 @@ def test_valid_config_round_trip() -> None:
         ("sparsity_l1", -1.0),
         ("prune_threshold", -1.0),
         ("opponent_ema_decay", 1.0),
+        ("opponent_blend", 1.5),
         ("correction_warmup_steps", -1),
         ("conflict_threshold", 1.5),
+        ("adaptive_correction_decay", 1.0),
+        ("adaptive_correction_min_scale", 0.0),
     ],
 )
 def test_invalid_config_values(field: str, value: float) -> None:
@@ -55,6 +68,14 @@ def test_invalid_config_values(field: str, value: float) -> None:
 def test_invalid_opponent_source() -> None:
     with pytest.raises(ConfigurationError):
         NEATConfig(opponent_source="invalid")
+
+
+def test_invalid_adaptive_scale_range() -> None:
+    with pytest.raises(ConfigurationError):
+        NEATConfig(
+            adaptive_correction_min_scale=2.0,
+            adaptive_correction_max_scale=1.5,
+        )
 
 
 def test_valid_player_config_round_trip() -> None:

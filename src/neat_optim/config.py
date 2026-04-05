@@ -9,7 +9,12 @@ from neat_optim.exceptions import ConfigurationError
 VALID_NCE_MODES = {"projection", "cosine", "off"}
 VALID_OPPONENT_MODES = {"mean_excluding_self", "batch_mean"}
 VALID_PLAYER_REDUCTIONS = {"mean", "sum"}
-VALID_OPPONENT_SOURCES = {"momentum", "previous_gradient", "gradient_ema"}
+VALID_OPPONENT_SOURCES = {
+    "momentum",
+    "previous_gradient",
+    "gradient_ema",
+    "blended",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,8 +38,13 @@ class NEATConfig:
     prune_threshold: float = 0.0
     opponent_source: str = "momentum"
     opponent_ema_decay: float = 0.9
+    opponent_blend: float = 0.5
     correction_warmup_steps: int = 0
     conflict_threshold: float = 0.0
+    adaptive_correction: bool = False
+    adaptive_correction_decay: float = 0.9
+    adaptive_correction_min_scale: float = 1.0
+    adaptive_correction_max_scale: float = 3.0
     native: str = "auto"
 
     def __post_init__(self) -> None:
@@ -65,10 +75,22 @@ class NEATConfig:
             )
         if not 0.0 <= self.opponent_ema_decay < 1.0:
             raise ConfigurationError("opponent_ema_decay must be in [0, 1)")
+        if not 0.0 <= self.opponent_blend <= 1.0:
+            raise ConfigurationError("opponent_blend must be in [0, 1]")
         if self.correction_warmup_steps < 0:
             raise ConfigurationError("correction_warmup_steps must be non-negative")
         if not 0.0 <= self.conflict_threshold <= 1.0:
             raise ConfigurationError("conflict_threshold must be in [0, 1]")
+        if not 0.0 <= self.adaptive_correction_decay < 1.0:
+            raise ConfigurationError("adaptive_correction_decay must be in [0, 1)")
+        if self.adaptive_correction_min_scale <= 0.0:
+            raise ConfigurationError(
+                "adaptive_correction_min_scale must be positive"
+            )
+        if self.adaptive_correction_max_scale < self.adaptive_correction_min_scale:
+            raise ConfigurationError(
+                "adaptive_correction_max_scale must be >= adaptive_correction_min_scale"
+            )
         if self.native not in {"auto", "never", "force"}:
             raise ConfigurationError("native must be one of 'auto', 'never', 'force'")
 

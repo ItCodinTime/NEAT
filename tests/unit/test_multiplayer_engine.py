@@ -81,6 +81,29 @@ def test_player_step_applies_lightweight_sparsity_controls() -> None:
     assert result.metrics.active_fraction == pytest.approx(1.0 / 3.0, abs=1e-6)
 
 
+def test_player_step_tracks_adaptive_conflict_state() -> None:
+    param = np.array([1.0, 2.0], dtype=np.float32)
+    player_grads = np.array([[1.0, 0.0], [-1.0, 0.0]], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+
+    result = neat_player_step(
+        param,
+        player_grads,
+        state,
+        PlayerNEATConfig(
+            learning_rate=0.1,
+            alpha=0.5,
+            beta=0.0,
+            adaptive_correction=True,
+            adaptive_correction_decay=0.5,
+            adaptive_correction_max_scale=2.0,
+        ),
+    )
+
+    assert result.state.conflict_ema > 0.0
+    assert result.metrics.mean_correction_ratio >= 0.0
+
+
 def test_player_step_rejects_invalid_player_gradient_shape() -> None:
     param = np.zeros((2, 2), dtype=np.float32)
     state = ArrayState.zeros_like(param)

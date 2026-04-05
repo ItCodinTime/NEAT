@@ -12,6 +12,7 @@ from neat_optim.engine.common import (
     clip_correction,
     conflict_ratio,
     safe_projection,
+    safe_ratio,
 )
 from neat_optim.exceptions import ShapeError
 from neat_optim.state import ArrayState, PlayerStepMetrics, PlayerStepResult
@@ -67,15 +68,25 @@ def neat_player_step(
     player_grads32 = as_float32(player_grads)
     _validate_player_grads(param32, player_grads32)
     momentum = as_float32(state.momentum).copy()
+    next_conflict_ema = state.conflict_ema
 
     summed_grads = player_grads32.sum(axis=0)
     conflicts = []
     corrections = []
     corrected_players = []
+    correction_ratios = []
     for index, gradient in enumerate(player_grads32):
         opponent = _player_opponent(player_grads32, index, config, summed_grads)
         conflict = conflict_ratio(gradient, opponent, config.eps)
-        if config.nce_mode == "off":
+        next_conflict_ema = (
+            (config.adaptive_correction_decay * next_conflict_ema)
+            + ((1.0 - config.adaptive_correction_decay) * conflict)
+        )
+        if (
+            config.nce_mode == "off"
+            or state.step < config.correction_warmup_steps
+            or conflict < config.conflict_threshold
+        ):
             correction = np.zeros_like(gradient)
         else:
             direction = (
@@ -83,7 +94,19 @@ def neat_player_step(
                 if config.nce_mode == "cosine"
                 else safe_projection(gradient, opponent, config.eps)
             )
-            correction = -config.alpha * conflict * direction
+            adaptive_scale = 1.0
+            if config.adaptive_correction:
+                grad_norm = l2_norm(gradient)
+                opponent_norm = l2_norm(opponent)
+                reliability = opponent_norm / (grad_norm + opponent_norm + config.eps)
+                adaptive_scale = float(
+                    np.clip(
+                        1.0 + reliability + max(conflict, next_conflict_ema),
+                        config.adaptive_correction_min_scale,
+                        config.adaptive_correction_max_scale,
+                    )
+                )
+            correction = -config.alpha * adaptive_scale * conflict * direction
             correction = clip_correction(
                 correction,
                 gradient,
@@ -92,6 +115,9 @@ def neat_player_step(
             )
         conflicts.append(conflict)
         corrections.append(correction)
+        correction_ratios.append(
+            safe_ratio(l2_norm(correction), l2_norm(gradient), config.eps)
+        )
         corrected_players.append((gradient + correction).astype(np.float32, copy=False))
 
     correction_stack = np.stack(corrections, axis=0)
@@ -117,6 +143,7 @@ def neat_player_step(
     next_state = ArrayState(
         momentum=next_momentum.astype(np.float32, copy=False),
         nce=aggregate_correction.astype(np.float32, copy=False),
+        conflict_ema=float(next_conflict_ema),
         step=state.step + 1,
     )
     metrics = PlayerStepMetrics(
@@ -127,6 +154,7 @@ def neat_player_step(
         max_player_conflict=float(np.max(conflicts)),
         active_fraction=active_fraction(next_param),
         num_players=int(player_grads32.shape[0]),
+        mean_correction_ratio=float(np.mean(correction_ratios)),
     )
     return PlayerStepResult(
         param=next_param.astype(np.float32, copy=False),
