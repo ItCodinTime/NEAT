@@ -45,6 +45,10 @@ class NEATConfig:
     adaptive_correction_decay: float = 0.9
     adaptive_correction_min_scale: float = 1.0
     adaptive_correction_max_scale: float = 3.0
+    adaptive_preconditioning: bool = False
+    second_moment_beta: float = 0.999
+    bias_correction: bool = False
+    precondition_nce: bool = True
     native: str = "auto"
 
     def __post_init__(self) -> None:
@@ -91,6 +95,8 @@ class NEATConfig:
             raise ConfigurationError(
                 "adaptive_correction_max_scale must be >= adaptive_correction_min_scale"
             )
+        if not 0.0 <= self.second_moment_beta < 1.0:
+            raise ConfigurationError("second_moment_beta must be in [0, 1)")
         if self.native not in {"auto", "never", "force"}:
             raise ConfigurationError("native must be one of 'auto', 'never', 'force'")
 

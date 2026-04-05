@@ -116,6 +116,29 @@ def test_previous_gradient_opponent_signal_changes_second_step() -> None:
     assert result.metrics.correction_ratio == pytest.approx(0.5, abs=1e-6)
 
 
+def test_adaptive_preconditioning_updates_second_moment_state() -> None:
+    param = np.array([1.0, -2.0], dtype=np.float32)
+    grad = np.array([0.5, -0.25], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(
+        learning_rate=0.01,
+        alpha=0.0,
+        beta=0.9,
+        adaptive_preconditioning=True,
+        second_moment_beta=0.99,
+        bias_correction=True,
+    )
+
+    result = neat_step_reference(param, grad, state, config)
+
+    assert result.state.second_moment is not None
+    np.testing.assert_allclose(
+        result.state.second_moment,
+        0.01 * np.square(grad),
+        atol=1e-6,
+    )
+
+
 def test_warmup_and_conflict_threshold_gate_correction() -> None:
     param = np.array([1.0, 2.0], dtype=np.float32)
     grad = np.array([1.0, 0.0], dtype=np.float32)

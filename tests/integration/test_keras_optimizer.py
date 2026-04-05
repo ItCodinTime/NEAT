@@ -78,6 +78,10 @@ def test_keras_optimizer_config_round_trip() -> None:
         adaptive_correction_decay=0.75,
         adaptive_correction_min_scale=1.0,
         adaptive_correction_max_scale=2.0,
+        adaptive_preconditioning=True,
+        second_moment_beta=0.995,
+        bias_correction=False,
+        precondition_nce=False,
     )
     clone = NEAT.from_config(optimizer.get_config())
     assert clone.get_config()["alpha"] == pytest.approx(0.2)
@@ -97,6 +101,10 @@ def test_keras_optimizer_config_round_trip() -> None:
     assert clone.get_config()["adaptive_correction_decay"] == pytest.approx(0.75)
     assert clone.get_config()["adaptive_correction_min_scale"] == pytest.approx(1.0)
     assert clone.get_config()["adaptive_correction_max_scale"] == pytest.approx(2.0)
+    assert clone.get_config()["adaptive_preconditioning"] is True
+    assert clone.get_config()["second_moment_beta"] == pytest.approx(0.995)
+    assert clone.get_config()["bias_correction"] is False
+    assert clone.get_config()["precondition_nce"] is False
 
 
 def test_keras_optimizer_matches_reference_projection_mode() -> None:
@@ -334,6 +342,57 @@ def test_keras_optimizer_matches_reference_with_blended_adaptive_opponent() -> N
     )
     snapshot = optimizer.diagnostic_snapshot()
     assert snapshot["mean_correction_ratio"] > 0.0
+
+
+def test_keras_optimizer_matches_reference_with_adaptive_preconditioning() -> None:
+    initial_param = np.array([1.0, -2.0], dtype=np.float32)
+    gradients = [
+        np.array([0.5, -0.25], dtype=np.float32),
+        np.array([-0.2, 0.1], dtype=np.float32),
+        np.array([0.1, -0.4], dtype=np.float32),
+    ]
+
+    optimizer, keras_param = _run_keras(
+        initial_param,
+        gradients,
+        learning_rate=0.01,
+        alpha=0.25,
+        beta=0.9,
+        opponent_source="previous_gradient",
+        adaptive_preconditioning=True,
+        second_moment_beta=0.99,
+        bias_correction=True,
+        precondition_nce=True,
+    )
+    reference = _run_reference(
+        initial_param,
+        gradients,
+        learning_rate=0.01,
+        alpha=0.25,
+        beta=0.9,
+        opponent_source="previous_gradient",
+        adaptive_preconditioning=True,
+        second_moment_beta=0.99,
+        bias_correction=True,
+        precondition_nce=True,
+    )
+
+    np.testing.assert_allclose(keras_param, reference.param, atol=1e-6)
+    np.testing.assert_allclose(
+        _to_numpy(optimizer.momentums[0]),
+        reference.state.momentum,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        _to_numpy(optimizer.nces[0]),
+        reference.state.nce,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        _to_numpy(optimizer.second_moments[0]),
+        reference.state.second_moment,
+        atol=1e-6,
+    )
 
 
 def test_keras_optimizer_reports_zero_correction_when_nce_is_disabled() -> None:

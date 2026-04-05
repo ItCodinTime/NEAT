@@ -21,6 +21,10 @@ def test_valid_config_round_trip() -> None:
         adaptive_correction_decay=0.8,
         adaptive_correction_min_scale=1.0,
         adaptive_correction_max_scale=2.5,
+        adaptive_preconditioning=True,
+        second_moment_beta=0.995,
+        bias_correction=False,
+        precondition_nce=False,
     )
     payload = config.as_dict()
     assert payload["learning_rate"] == pytest.approx(1e-2)
@@ -38,6 +42,10 @@ def test_valid_config_round_trip() -> None:
     assert payload["adaptive_correction_decay"] == pytest.approx(0.8)
     assert payload["adaptive_correction_min_scale"] == pytest.approx(1.0)
     assert payload["adaptive_correction_max_scale"] == pytest.approx(2.5)
+    assert payload["adaptive_preconditioning"] is True
+    assert payload["second_moment_beta"] == pytest.approx(0.995)
+    assert payload["bias_correction"] is False
+    assert payload["precondition_nce"] is False
 
 
 @pytest.mark.parametrize(
@@ -57,6 +65,7 @@ def test_valid_config_round_trip() -> None:
         ("conflict_threshold", 1.5),
         ("adaptive_correction_decay", 1.0),
         ("adaptive_correction_min_scale", 0.0),
+        ("second_moment_beta", 1.0),
     ],
 )
 def test_invalid_config_values(field: str, value: float) -> None:
