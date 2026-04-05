@@ -1,0 +1,117 @@
+{
+  "task": "adaptive_neat_accuracy_speed_params",
+  "date": "2026-04-05",
+  "benchmark_config": {
+    "seeds": [
+      7,
+      11,
+      19
+    ],
+    "epochs": 20,
+    "batch_size": 64,
+    "footprint_seed": 7
+  },
+  "summary": [
+    {
+      "optimizer": "neat_adaptive_best",
+      "optimizer_family": "neat",
+      "optimizer_config": {
+        "learning_rate": 0.008,
+        "alpha": 0.25,
+        "beta": 0.9,
+        "opponent_source": "previous_gradient",
+        "nce_mode": "projection",
+        "nce_clip_ratio": 1.0,
+        "adaptive_correction": true,
+        "adaptive_correction_decay": 0.9,
+        "adaptive_correction_min_scale": 1.0,
+        "adaptive_correction_max_scale": 2.5,
+        "adaptive_preconditioning": true,
+        "second_moment_beta": 0.999,
+        "bias_correction": true,
+        "precondition_nce": true,
+        "correction_warmup_steps": 0,
+        "conflict_threshold": 0.0
+      },
+      "num_trials": 3,
+      "mean_test_accuracy": 0.9768518606821696,
+      "std_test_accuracy": 0.00472132285011922,
+      "mean_test_loss": 0.13971047600110373,
+      "mean_val_accuracy": 0.9777777791023254,
+      "mean_seconds": 14.61185030599639,
+      "mean_conflict_ratio": 0.07788759368697024,
+      "mean_correction_ratio": 0.013403210608787788,
+      "mean_update_alignment": 0.9359605976179535,
+      "mean_opponent_norm": 0.054497306175481264,
+      "correction_active_fraction": 0.4029411764705882
+    },
+    {
+      "optimizer": "sgd_momentum",
+      "optimizer_family": "sgd_momentum",
+      "optimizer_config": {
+        "learning_rate": 0.01
+      },
+      "num_trials": 3,
+      "mean_test_accuracy": 0.9703703920046488,
+      "std_test_accuracy": 0.00654728813297533,
+      "mean_test_loss": 0.12311303615570068,
+      "mean_val_accuracy": 0.9620370268821716,
+      "mean_seconds": 7.769314639330939,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "adam",
+      "optimizer_family": "adam",
+      "optimizer_config": {
+        "learning_rate": 0.001
+      },
+      "num_trials": 3,
+      "mean_test_accuracy": 0.9685185154279073,
+      "std_test_accuracy": 0.006928992092714707,
+      "mean_test_loss": 0.11902733147144318,
+      "mean_val_accuracy": 0.9675925970077515,
+      "mean_seconds": 17.809940819667343,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    }
+  ],
+  "footprints": [
+    {
+      "optimizer": "sgd_momentum",
+      "seed": 7,
+      "test_loss": 0.16743502020835876,
+      "test_accuracy": 0.9611111283302307,
+      "param_count": 17226,
+      "nonzero_count": 17226,
+      "keras_file_bytes": 161406,
+      "mean_inference_seconds": 0.0019235333200776949
+    },
+    {
+      "optimizer": "adam",
+      "seed": 7,
+      "test_loss": 0.14840196073055267,
+      "test_accuracy": 0.9611111283302307,
+      "param_count": 17226,
+      "nonzero_count": 17226,
+      "keras_file_bytes": 232481,
+      "mean_inference_seconds": 0.002785346680029761
+    },
+    {
+      "optimizer": "neat_adaptive_best",
+      "seed": 7,
+      "test_loss": 0.1517113745212555,
+      "test_accuracy": 0.9722222089767456,
+      "param_count": 17226,
+      "nonzero_count": 17226,
+      "keras_file_bytes": 519879,
+      "mean_inference_seconds": 0.001779956679965835
+    }
+  ]
+}

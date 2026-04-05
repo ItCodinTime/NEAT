@@ -13,6 +13,7 @@ from neat_optim.state import (
 __all__ = [
     "ArrayState",
     "DenseCompactionReport",
+    "DenseCompactionSearchResult",
     "NEAT",
     "NEATConfig",
     "PlayerNEATConfig",
@@ -25,6 +26,7 @@ __all__ = [
     "compact_dense_model",
     "count_nonzero_model_params",
     "measure_keras_file_size",
+    "search_compact_dense_model",
 ]
 
 
@@ -41,18 +43,22 @@ def __getattr__(name: str):
         return NEAT
     if name in {
         "DenseCompactionReport",
+        "DenseCompactionSearchResult",
         "benchmark_inference_latency",
         "compact_dense_model",
         "count_nonzero_model_params",
         "measure_keras_file_size",
+        "search_compact_dense_model",
     }:
         try:
             from neat_optim.compaction import (
                 DenseCompactionReport,
+                DenseCompactionSearchResult,
                 benchmark_inference_latency,
                 compact_dense_model,
                 count_nonzero_model_params,
                 measure_keras_file_size,
+                search_compact_dense_model,
             )
         except Exception as exc:  # pragma: no cover - import guard behavior
             raise ImportError(
@@ -62,10 +68,12 @@ def __getattr__(name: str):
             ) from exc
         exports = {
             "DenseCompactionReport": DenseCompactionReport,
+            "DenseCompactionSearchResult": DenseCompactionSearchResult,
             "benchmark_inference_latency": benchmark_inference_latency,
             "compact_dense_model": compact_dense_model,
             "count_nonzero_model_params": count_nonzero_model_params,
             "measure_keras_file_size": measure_keras_file_size,
+            "search_compact_dense_model": search_compact_dense_model,
         }
         return exports[name]
     raise AttributeError(f"module 'neat_optim' has no attribute {name!r}")
