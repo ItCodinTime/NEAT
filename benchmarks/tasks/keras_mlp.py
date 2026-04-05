@@ -24,7 +24,8 @@ from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from neat_optim import NEAT
+from neat_optim import NEAT, PlayerNEATConfig
+from neat_optim.training import create_player_states, player_train_step
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +37,7 @@ class BenchmarkConfig:
     batch_size: int = 64
     hidden_units: tuple[int, int] = (128, 64)
     validation_fraction: float = 0.2
+    player_batch_size: int = 32
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,9 +62,14 @@ class NEATSweepConfig:
         "momentum",
         "previous_gradient",
         "gradient_ema",
+        "blended",
     )
+    opponent_blends: tuple[float, ...] = (0.25, 0.5)
     correction_warmup_steps: tuple[int, ...] = (0,)
     conflict_thresholds: tuple[float, ...] = (0.0,)
+    adaptive_corrections: tuple[bool, ...] = (False, True)
+    adaptive_correction_decays: tuple[float, ...] = (0.9,)
+    adaptive_correction_max_scales: tuple[float, ...] = (2.0, 3.0)
     seeds: tuple[int, ...] = (7,)
     top_k: int = 10
 
@@ -159,6 +166,22 @@ def build_default_optimizer_specs() -> tuple[OptimizerSpec, ...]:
                 "conflict_threshold": 0.0,
             },
         ),
+        OptimizerSpec(
+            "player_neat",
+            "player_neat",
+            {
+                "learning_rate": 6e-2,
+                "alpha": 0.25,
+                "beta": 0.9,
+                "nce_mode": "projection",
+                "nce_clip_ratio": 1.0,
+                "adaptive_correction": True,
+                "adaptive_correction_decay": 0.9,
+                "adaptive_correction_max_scale": 2.5,
+                "opponent_mode": "mean_excluding_self",
+                "player_reduction": "mean",
+            },
+        ),
     )
 
 
@@ -180,6 +203,143 @@ def _build_optimizer(spec: OptimizerSpec) -> Any:
     if spec.family == "neat":
         return NEAT(**spec.config)
     raise ValueError(f"unknown optimizer family: {spec.family}")
+
+
+def _evaluate_model(
+    model: keras.Model,
+    x: np.ndarray,
+    y: np.ndarray,
+    batch_size: int,
+) -> tuple[float, float]:
+    loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    logits = model.predict(x, batch_size=batch_size, verbose=0)
+    loss = float(loss_fn(y, logits).numpy())
+    predictions = np.argmax(logits, axis=1)
+    accuracy = float(np.mean(predictions == y))
+    return loss, accuracy
+
+
+def _mean_player_metrics(
+    metrics_rows: list[dict[str, float]],
+) -> dict[str, float | None]:
+    if not metrics_rows:
+        return {
+            "mean_conflict_ratio": None,
+            "mean_correction_ratio": None,
+            "mean_update_alignment": None,
+            "mean_opponent_norm": None,
+            "correction_active_fraction": None,
+        }
+    return {
+        "mean_conflict_ratio": float(
+            np.mean([row["mean_player_conflict"] for row in metrics_rows])
+        ),
+        "mean_correction_ratio": float(
+            np.mean([row["mean_correction_ratio"] for row in metrics_rows])
+        ),
+        "mean_update_alignment": None,
+        "mean_opponent_norm": None,
+        "correction_active_fraction": None,
+    }
+
+
+def _run_player_trial(
+    spec: OptimizerSpec,
+    seed: int,
+    data: dict[str, np.ndarray],
+    config: BenchmarkConfig,
+) -> TrialResult:
+    _set_seed(seed)
+    tf.keras.backend.clear_session()
+    model = _build_model(config.hidden_units)
+    _ = model(data["x_train"][:1], training=False)
+    states = create_player_states(model)
+    loss_fn = keras.losses.SparseCategoricalCrossentropy(
+        from_logits=True,
+        reduction="none",
+    )
+    player_config = PlayerNEATConfig(native="never", **spec.config)
+
+    rng = np.random.default_rng(seed)
+    batch_size = config.player_batch_size
+    metrics_rows: list[dict[str, float]] = []
+    start = time.perf_counter()
+    for _epoch in range(config.epochs):
+        indices = rng.permutation(len(data["x_train"]))
+        for start_index in range(0, len(indices), batch_size):
+            batch_indices = indices[start_index : start_index + batch_size]
+            batch_x = tf.convert_to_tensor(data["x_train"][batch_indices])
+            batch_y = tf.convert_to_tensor(data["y_train"][batch_indices])
+            result = player_train_step(
+                model,
+                batch_x,
+                batch_y,
+                loss_fn,
+                states,
+                player_config,
+            )
+            states = result.states
+            if result.metrics:
+                metrics_rows.append(
+                    {
+                        "mean_player_conflict": float(
+                            np.mean(
+                                [
+                                    metric.mean_player_conflict
+                                    for metric in result.metrics
+                                ]
+                            )
+                        ),
+                        "mean_correction_ratio": float(
+                            np.mean(
+                                [
+                                    metric.mean_correction_ratio
+                                    for metric in result.metrics
+                                ]
+                            )
+                        ),
+                    }
+                )
+    elapsed = time.perf_counter() - start
+
+    train_loss, train_accuracy = _evaluate_model(
+        model,
+        data["x_train"],
+        data["y_train"],
+        batch_size=config.batch_size,
+    )
+    val_loss, val_accuracy = _evaluate_model(
+        model,
+        data["x_val"],
+        data["y_val"],
+        batch_size=config.batch_size,
+    )
+    test_loss, test_accuracy = _evaluate_model(
+        model,
+        data["x_test"],
+        data["y_test"],
+        batch_size=config.batch_size,
+    )
+    diagnostics = _mean_player_metrics(metrics_rows)
+    return TrialResult(
+        optimizer=spec.label,
+        optimizer_family=spec.family,
+        optimizer_config=dict(spec.config),
+        seed=seed,
+        epochs=config.epochs,
+        train_loss=train_loss,
+        train_accuracy=train_accuracy,
+        val_loss=val_loss,
+        val_accuracy=val_accuracy,
+        test_loss=test_loss,
+        test_accuracy=test_accuracy,
+        seconds=float(elapsed),
+        mean_conflict_ratio=diagnostics["mean_conflict_ratio"],
+        mean_correction_ratio=diagnostics["mean_correction_ratio"],
+        mean_update_alignment=diagnostics["mean_update_alignment"],
+        mean_opponent_norm=diagnostics["mean_opponent_norm"],
+        correction_active_fraction=diagnostics["correction_active_fraction"],
+    )
 
 
 def _trial_diagnostics(optimizer: Any) -> dict[str, float | None]:
@@ -209,6 +369,9 @@ def _run_trial(
     data: dict[str, np.ndarray],
     config: BenchmarkConfig,
 ) -> TrialResult:
+    if spec.family == "player_neat":
+        return _run_player_trial(spec, seed, data, config)
+
     _set_seed(seed)
     tf.keras.backend.clear_session()
     model = _build_model(config.hidden_units)
@@ -365,8 +528,11 @@ def _sweep_label(config: dict[str, Any]) -> str:
         f"_mode={config['nce_mode']}"
         f"_clip={config['nce_clip_ratio']}"
         f"_opp={config['opponent_source']}"
+        f"_blend={config['opponent_blend']}"
         f"_warmup={config['correction_warmup_steps']}"
         f"_threshold={config['conflict_threshold']}"
+        f"_adaptive={int(config['adaptive_correction'])}"
+        f"_amax={config['adaptive_correction_max_scale']}"
     )
 
 
@@ -380,8 +546,12 @@ def build_neat_sweep_specs(search: NEATSweepConfig) -> tuple[OptimizerSpec, ...]
         nce_mode,
         nce_clip_ratio,
         opponent_source,
+        opponent_blend,
         correction_warmup_steps,
         conflict_threshold,
+        adaptive_correction,
+        adaptive_correction_decay,
+        adaptive_correction_max_scale,
     ) in product(
         search.learning_rates,
         search.alphas,
@@ -389,8 +559,12 @@ def build_neat_sweep_specs(search: NEATSweepConfig) -> tuple[OptimizerSpec, ...]
         search.nce_modes,
         search.nce_clip_ratios,
         search.opponent_sources,
+        search.opponent_blends,
         search.correction_warmup_steps,
         search.conflict_thresholds,
+        search.adaptive_corrections,
+        search.adaptive_correction_decays,
+        search.adaptive_correction_max_scales,
     ):
         config = {
             "learning_rate": learning_rate,
@@ -399,8 +573,13 @@ def build_neat_sweep_specs(search: NEATSweepConfig) -> tuple[OptimizerSpec, ...]
             "nce_mode": nce_mode,
             "nce_clip_ratio": nce_clip_ratio,
             "opponent_source": opponent_source,
+            "opponent_blend": opponent_blend,
             "correction_warmup_steps": correction_warmup_steps,
             "conflict_threshold": conflict_threshold,
+            "adaptive_correction": adaptive_correction,
+            "adaptive_correction_decay": adaptive_correction_decay,
+            "adaptive_correction_min_scale": 1.0,
+            "adaptive_correction_max_scale": adaptive_correction_max_scale,
         }
         specs.append(OptimizerSpec(_sweep_label(config), "neat", config))
     return tuple(specs)

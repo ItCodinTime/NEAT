@@ -32,6 +32,7 @@ def _compute_nce(
     gradient: np.ndarray,
     opponent: np.ndarray,
     state_step: int,
+    conflict_ema: float,
     config: NEATConfig,
 ) -> tuple[np.ndarray, float]:
     if config.nce_mode == "off":
@@ -47,7 +48,20 @@ def _compute_nce(
     else:
         direction = _safe_projection(gradient, opponent, config.eps)
 
-    correction = -config.alpha * conflict * direction
+    adaptive_scale = np.float32(1.0)
+    if config.adaptive_correction:
+        grad_norm = l2_norm(gradient)
+        opponent_norm = l2_norm(opponent)
+        reliability = opponent_norm / (grad_norm + opponent_norm + config.eps)
+        adaptive_scale = np.float32(
+            np.clip(
+                1.0 + reliability + max(conflict, conflict_ema),
+                config.adaptive_correction_min_scale,
+                config.adaptive_correction_max_scale,
+            )
+        )
+
+    correction = -config.alpha * adaptive_scale * conflict * direction
     return clip_correction(
         correction,
         gradient,
@@ -61,6 +75,15 @@ def _opponent_signal(
     state: ArrayState,
     config: NEATConfig,
 ) -> np.ndarray:
+    if config.opponent_source == "blended":
+        momentum = as_float32(state.momentum)
+        ema = (
+            np.zeros_like(gradient)
+            if state.gradient_ema is None
+            else as_float32(state.gradient_ema)
+        )
+        blend = np.float32(config.opponent_blend)
+        return (blend * momentum) + ((np.float32(1.0) - blend) * ema)
     if config.opponent_source == "previous_gradient":
         previous = state.previous_gradient
         return np.zeros_like(gradient) if previous is None else as_float32(previous)
@@ -86,9 +109,19 @@ def neat_step_reference(
         if state.gradient_ema is None
         else as_float32(state.gradient_ema).copy()
     )
-
     opponent = _opponent_signal(grad32, state, config)
-    nce, conflict = _compute_nce(grad32, opponent, state.step, config)
+    current_conflict = conflict_ratio(grad32, opponent, config.eps)
+    next_conflict_ema = (
+        (config.adaptive_correction_decay * state.conflict_ema)
+        + ((1.0 - config.adaptive_correction_decay) * current_conflict)
+    )
+    nce, conflict = _compute_nce(
+        grad32,
+        opponent,
+        state.step,
+        next_conflict_ema,
+        config,
+    )
     update_direction = grad32 + nce
     next_momentum = (config.beta * momentum) + ((1.0 - config.beta) * update_direction)
 
@@ -110,6 +143,7 @@ def neat_step_reference(
         nce=nce.astype(np.float32, copy=False),
         previous_gradient=grad32.astype(np.float32, copy=False),
         gradient_ema=update_ema(gradient_ema, grad32, config.opponent_ema_decay),
+        conflict_ema=float(next_conflict_ema),
         step=state.step + 1,
     )
     grad_norm = l2_norm(grad32)
