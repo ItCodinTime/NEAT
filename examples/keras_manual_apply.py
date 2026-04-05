@@ -5,6 +5,7 @@ Requires:
 """
 
 import keras
+import tensorflow as tf
 
 from neat_optim import NEAT
 
@@ -14,7 +15,7 @@ def main() -> None:
     gradient = keras.ops.array([0.5, -0.25], dtype="float32")
     optimizer = NEAT(learning_rate=0.1, alpha=0.25, beta=0.9)
     optimizer.apply_gradients([(gradient, variable)])
-    print(keras.ops.convert_to_numpy(variable))
+    print(tf.convert_to_tensor(variable).numpy())
 
 
 if __name__ == "__main__":

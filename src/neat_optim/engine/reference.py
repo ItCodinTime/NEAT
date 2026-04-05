@@ -11,13 +11,17 @@ def _as_float32(array: np.ndarray) -> np.ndarray:
     return np.asarray(array, dtype=np.float32)
 
 
+def _flat_dot(left: np.ndarray, right: np.ndarray) -> float:
+    return float(np.dot(left.reshape(-1), right.reshape(-1)))
+
+
 def _safe_projection(
     gradient: np.ndarray, vector: np.ndarray, eps: float
 ) -> np.ndarray:
-    denom = float(np.dot(vector, vector))
+    denom = _flat_dot(vector, vector)
     if denom <= eps:
         return np.zeros_like(gradient)
-    return (float(np.dot(gradient, vector)) / (denom + eps)) * vector
+    return (_flat_dot(gradient, vector) / (denom + eps)) * vector
 
 
 def _conflict_ratio(gradient: np.ndarray, vector: np.ndarray, eps: float) -> float:
@@ -25,7 +29,7 @@ def _conflict_ratio(gradient: np.ndarray, vector: np.ndarray, eps: float) -> flo
     vec_norm = l2_norm(vector)
     if grad_norm <= eps or vec_norm <= eps:
         return 0.0
-    cosine = float(np.dot(gradient, vector) / ((grad_norm * vec_norm) + eps))
+    cosine = _flat_dot(gradient, vector) / ((grad_norm * vec_norm) + eps)
     return max(0.0, -cosine)
 
 

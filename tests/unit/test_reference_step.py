@@ -76,3 +76,18 @@ def test_correction_is_clipped_to_gradient_norm() -> None:
     result = neat_step_reference(param, grad, state, config)
 
     assert np.linalg.norm(result.state.nce) == pytest.approx(0.25, abs=1e-6)
+
+
+def test_reference_step_supports_matrix_parameters() -> None:
+    param = np.array([[1.0, -2.0], [0.5, 3.0]], dtype=np.float32)
+    grad = np.array([[0.5, -0.25], [0.1, -0.2]], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(learning_rate=0.05, alpha=0.25, beta=0.9)
+
+    result = neat_step_reference(param, grad, state, config)
+
+    assert result.state.step == 1
+    assert result.param.shape == param.shape
+    assert result.state.momentum.shape == param.shape
+    assert result.state.nce.shape == param.shape
+    assert np.isfinite(result.param).all()
