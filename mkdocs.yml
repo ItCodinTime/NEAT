@@ -10,6 +10,7 @@ nav:
   - Research:
       - Math Spec: research/math-spec.md
       - Algorithm: research/algorithm.md
+      - Player-Aware Mode: research/player-aware.md
       - Benchmarks: research/benchmarks.md
   - Contributing:
       - Development: contributing/development.md

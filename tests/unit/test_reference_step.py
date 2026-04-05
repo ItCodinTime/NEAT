@@ -91,3 +91,66 @@ def test_reference_step_supports_matrix_parameters() -> None:
     assert result.state.momentum.shape == param.shape
     assert result.state.nce.shape == param.shape
     assert np.isfinite(result.param).all()
+
+
+def test_previous_gradient_opponent_signal_changes_second_step() -> None:
+    param = np.array([1.0, 2.0], dtype=np.float32)
+    first_grad = np.array([-1.0, 0.0], dtype=np.float32)
+    second_grad = np.array([1.0, 0.0], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(
+        learning_rate=0.1,
+        alpha=0.5,
+        beta=0.0,
+        opponent_source="previous_gradient",
+    )
+
+    first = neat_step_reference(param, first_grad, state, config)
+    result = neat_step_reference(first.param, second_grad, first.state, config)
+
+    np.testing.assert_allclose(
+        result.state.nce,
+        np.array([-0.5, 0.0], dtype=np.float32),
+    )
+    assert result.metrics.conflict_ratio == pytest.approx(1.0)
+    assert result.metrics.correction_ratio == pytest.approx(0.5, abs=1e-6)
+
+
+def test_warmup_and_conflict_threshold_gate_correction() -> None:
+    param = np.array([1.0, 2.0], dtype=np.float32)
+    grad = np.array([1.0, 0.0], dtype=np.float32)
+    state = ArrayState(
+        momentum=np.array([-1.0, 0.0], dtype=np.float32),
+        nce=np.zeros(2, dtype=np.float32),
+        step=0,
+    )
+    warmup_config = NEATConfig(
+        learning_rate=0.1,
+        alpha=0.5,
+        beta=0.0,
+        correction_warmup_steps=1,
+    )
+
+    warmup_result = neat_step_reference(param, grad, state, warmup_config)
+    np.testing.assert_allclose(warmup_result.state.nce, np.zeros(2, dtype=np.float32))
+
+    state.step = 1
+    threshold_result = neat_step_reference(
+        param,
+        np.array([0.1, 0.0], dtype=np.float32),
+        ArrayState(
+            momentum=np.array([-1.0, 0.0], dtype=np.float32),
+            nce=np.zeros(2, dtype=np.float32),
+            step=1,
+        ),
+        NEATConfig(
+            learning_rate=0.1,
+            alpha=0.5,
+            beta=0.0,
+            conflict_threshold=1.0,
+        ),
+    )
+    np.testing.assert_allclose(
+        threshold_result.state.nce,
+        np.zeros(2, dtype=np.float32),
+    )

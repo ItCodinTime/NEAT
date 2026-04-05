@@ -1,12 +1,21 @@
+"""Framework-agnostic public stepping API for NEAT."""
+
 from __future__ import annotations
 
 import numpy as np
 
 from neat_optim.config import NEATConfig
+from neat_optim.engine.common import (
+    active_fraction,
+    as_float32,
+    cosine_similarity,
+    safe_ratio,
+)
 from neat_optim.engine.native import load_native_core
 from neat_optim.engine.reference import neat_step_reference
 from neat_optim.exceptions import NativeCoreUnavailableError
 from neat_optim.state import ArrayState, StepMetrics, StepResult
+from neat_optim.utils.metrics import l2_norm
 
 
 def neat_step(
@@ -15,10 +24,23 @@ def neat_step(
     state: ArrayState,
     config: NEATConfig,
 ) -> StepResult:
-    """Apply one optimizer step, using the native core when available."""
+    """Apply one optimizer step, using the native core when available.
 
-    if config.native != "never":
+    This function is the recommended public entrypoint when you want a
+    framework-independent NEAT step over NumPy arrays while still allowing the
+    optional native core to accelerate execution.
+    """
+
+    if (
+        config.native != "never"
+        and config.sparsity_l1 == 0.0
+        and config.prune_threshold == 0.0
+        and config.opponent_source == "momentum"
+        and config.correction_warmup_steps == 0
+        and config.conflict_threshold == 0.0
+    ):
         try:
+            pre_momentum = as_float32(state.momentum).copy()
             native = load_native_core()
             native_metrics = native.cpu_step_inplace(
                 param,
@@ -34,12 +56,31 @@ def neat_step(
                 config.nce_mode,
                 config.decouple_weight_decay,
             )
+            state.previous_gradient = as_float32(grad).copy()
+            previous_ema = (
+                np.zeros_like(grad, dtype=np.float32)
+                if state.gradient_ema is None
+                else as_float32(state.gradient_ema)
+            )
+            state.gradient_ema = (
+                (config.opponent_ema_decay * previous_ema)
+                + ((1.0 - config.opponent_ema_decay) * as_float32(grad))
+            ).astype(np.float32, copy=False)
             state.step += 1
+            grad32 = as_float32(grad)
+            nce32 = as_float32(state.nce)
+            grad_norm = float(native_metrics["grad_norm"])
+            nce_norm = float(native_metrics["nce_norm"])
             metrics = StepMetrics(
-                grad_norm=float(native_metrics["grad_norm"]),
+                grad_norm=grad_norm,
                 update_norm=float(native_metrics["update_norm"]),
-                nce_norm=float(native_metrics["nce_norm"]),
+                nce_norm=nce_norm,
                 conflict_ratio=float(native_metrics["conflict_ratio"]),
+                active_fraction=active_fraction(as_float32(param)),
+                opponent_norm=l2_norm(pre_momentum),
+                correction_ratio=safe_ratio(nce_norm, grad_norm, config.eps),
+                update_alignment=cosine_similarity(grad32, grad32 + nce32, config.eps),
+                correction_active=1.0 if nce_norm > config.eps else 0.0,
             )
             return StepResult(param=param, state=state, metrics=metrics)
         except NativeCoreUnavailableError:

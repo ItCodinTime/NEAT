@@ -1,3 +1,5 @@
+"""Small reproducibility helpers used by examples and experiments."""
+
 from __future__ import annotations
 
 import os
@@ -7,6 +9,7 @@ import numpy as np
 
 
 def seed_everything(seed: int) -> None:
+    """Seed standard Python and NumPy randomness sources."""
     random.seed(seed)
     np.random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
