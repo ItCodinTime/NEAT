@@ -1,0 +1,125 @@
+[
+  {
+    "optimizer": "sgd_momentum",
+    "base": {
+      "test_loss": 0.16743502020835876,
+      "test_accuracy": 0.9611111283302307,
+      "param_count": 17226,
+      "keras_file_bytes": 161406,
+      "mean_inference_seconds": 0.004292535839995253,
+      "hidden_units": [
+        128,
+        64
+      ]
+    },
+    "best_no_accuracy_loss_compaction": {
+      "threshold": 0.18,
+      "hidden_units": [
+        123,
+        61
+      ],
+      "param_count": 16179,
+      "keras_file_bytes": 153111,
+      "test_loss": 0.16903890669345856,
+      "test_accuracy": 0.9611111283302307,
+      "mean_inference_seconds": 0.006460178330016788,
+      "report": {
+        "original_hidden_units": [
+          128,
+          64
+        ],
+        "compacted_hidden_units": [
+          123,
+          61
+        ],
+        "original_param_count": 17226,
+        "compacted_param_count": 16179,
+        "original_nonzero_count": 17226,
+        "compacted_nonzero_count": 16179,
+        "unit_threshold": 0.18
+      }
+    }
+  },
+  {
+    "optimizer": "adam",
+    "base": {
+      "test_loss": 0.14840196073055267,
+      "test_accuracy": 0.9611111283302307,
+      "param_count": 17226,
+      "keras_file_bytes": 232481,
+      "mean_inference_seconds": 0.012953963330000989,
+      "hidden_units": [
+        128,
+        64
+      ]
+    },
+    "best_no_accuracy_loss_compaction": {
+      "threshold": 0.2,
+      "hidden_units": [
+        119,
+        63
+      ],
+      "param_count": 15935,
+      "keras_file_bytes": 151159,
+      "test_loss": 0.15514415502548218,
+      "test_accuracy": 0.9611111283302307,
+      "mean_inference_seconds": 0.003510517920003622,
+      "report": {
+        "original_hidden_units": [
+          128,
+          64
+        ],
+        "compacted_hidden_units": [
+          119,
+          63
+        ],
+        "original_param_count": 17226,
+        "compacted_param_count": 15935,
+        "original_nonzero_count": 17226,
+        "compacted_nonzero_count": 15935,
+        "unit_threshold": 0.2
+      }
+    }
+  },
+  {
+    "optimizer": "neat",
+    "base": {
+      "test_loss": 0.19135750830173492,
+      "test_accuracy": 0.9527778029441833,
+      "param_count": 17226,
+      "keras_file_bytes": 377110,
+      "mean_inference_seconds": 0.010992434170038905,
+      "hidden_units": [
+        128,
+        64
+      ]
+    },
+    "best_no_accuracy_loss_compaction": {
+      "threshold": 0.16,
+      "hidden_units": [
+        123,
+        62
+      ],
+      "param_count": 16313,
+      "keras_file_bytes": 154183,
+      "test_loss": 0.19456547498703003,
+      "test_accuracy": 0.9527778029441833,
+      "mean_inference_seconds": 0.0031976295899949036,
+      "report": {
+        "original_hidden_units": [
+          128,
+          64
+        ],
+        "compacted_hidden_units": [
+          123,
+          62
+        ],
+        "original_param_count": 17226,
+        "compacted_param_count": 16313,
+        "original_nonzero_count": 14430,
+        "compacted_nonzero_count": 13657,
+        "unit_threshold": 0.16
+      }
+    }
+  }
+]
