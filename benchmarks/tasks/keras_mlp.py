@@ -70,6 +70,10 @@ class NEATSweepConfig:
     adaptive_corrections: tuple[bool, ...] = (False, True)
     adaptive_correction_decays: tuple[float, ...] = (0.9,)
     adaptive_correction_max_scales: tuple[float, ...] = (2.0, 3.0)
+    adaptive_preconditionings: tuple[bool, ...] = (False, True)
+    second_moment_betas: tuple[float, ...] = (0.999,)
+    bias_corrections: tuple[bool, ...] = (False, True)
+    precondition_nces: tuple[bool, ...] = (True,)
     seeds: tuple[int, ...] = (7,)
     top_k: int = 10
 
@@ -156,12 +160,20 @@ def build_default_optimizer_specs() -> tuple[OptimizerSpec, ...]:
             "neat",
             "neat",
             {
-                "learning_rate": 3e-2,
+                "learning_rate": 8e-3,
                 "alpha": 0.25,
                 "beta": 0.9,
                 "nce_mode": "projection",
                 "nce_clip_ratio": 1.0,
-                "opponent_source": "momentum",
+                "opponent_source": "previous_gradient",
+                "adaptive_correction": True,
+                "adaptive_correction_decay": 0.9,
+                "adaptive_correction_min_scale": 1.0,
+                "adaptive_correction_max_scale": 2.5,
+                "adaptive_preconditioning": True,
+                "second_moment_beta": 0.999,
+                "bias_correction": True,
+                "precondition_nce": True,
                 "correction_warmup_steps": 0,
                 "conflict_threshold": 0.0,
             },
@@ -533,6 +545,9 @@ def _sweep_label(config: dict[str, Any]) -> str:
         f"_threshold={config['conflict_threshold']}"
         f"_adaptive={int(config['adaptive_correction'])}"
         f"_amax={config['adaptive_correction_max_scale']}"
+        f"_precond={int(config['adaptive_preconditioning'])}"
+        f"_beta2={config['second_moment_beta']}"
+        f"_bias={int(config['bias_correction'])}"
     )
 
 
@@ -552,6 +567,10 @@ def build_neat_sweep_specs(search: NEATSweepConfig) -> tuple[OptimizerSpec, ...]
         adaptive_correction,
         adaptive_correction_decay,
         adaptive_correction_max_scale,
+        adaptive_preconditioning,
+        second_moment_beta,
+        bias_correction,
+        precondition_nce,
     ) in product(
         search.learning_rates,
         search.alphas,
@@ -565,6 +584,10 @@ def build_neat_sweep_specs(search: NEATSweepConfig) -> tuple[OptimizerSpec, ...]
         search.adaptive_corrections,
         search.adaptive_correction_decays,
         search.adaptive_correction_max_scales,
+        search.adaptive_preconditionings,
+        search.second_moment_betas,
+        search.bias_corrections,
+        search.precondition_nces,
     ):
         config = {
             "learning_rate": learning_rate,
@@ -580,6 +603,10 @@ def build_neat_sweep_specs(search: NEATSweepConfig) -> tuple[OptimizerSpec, ...]
             "adaptive_correction_decay": adaptive_correction_decay,
             "adaptive_correction_min_scale": 1.0,
             "adaptive_correction_max_scale": adaptive_correction_max_scale,
+            "adaptive_preconditioning": adaptive_preconditioning,
+            "second_moment_beta": second_moment_beta,
+            "bias_correction": bias_correction,
+            "precondition_nce": precondition_nce,
         }
         specs.append(OptimizerSpec(_sweep_label(config), "neat", config))
     return tuple(specs)

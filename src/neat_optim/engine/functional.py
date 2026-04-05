@@ -43,6 +43,10 @@ def neat_step(
         and config.adaptive_correction_decay == 0.9
         and config.adaptive_correction_min_scale == 1.0
         and config.adaptive_correction_max_scale == 3.0
+        and not config.adaptive_preconditioning
+        and config.second_moment_beta == 0.999
+        and not config.bias_correction
+        and config.precondition_nce
     ):
         try:
             pre_momentum = as_float32(state.momentum).copy()
@@ -71,6 +75,8 @@ def neat_step(
                 (config.opponent_ema_decay * previous_ema)
                 + ((1.0 - config.opponent_ema_decay) * as_float32(grad))
             ).astype(np.float32, copy=False)
+            if state.second_moment is None:
+                state.second_moment = np.zeros_like(grad, dtype=np.float32)
             state.step += 1
             grad32 = as_float32(grad)
             nce32 = as_float32(state.nce)

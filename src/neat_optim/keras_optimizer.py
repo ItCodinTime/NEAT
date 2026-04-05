@@ -33,6 +33,10 @@ class NEAT(keras.optimizers.Optimizer):
         adaptive_correction_decay: float = 0.9,
         adaptive_correction_min_scale: float = 1.0,
         adaptive_correction_max_scale: float = 3.0,
+        adaptive_preconditioning: bool = False,
+        second_moment_beta: float = 0.999,
+        bias_correction: bool = False,
+        precondition_nce: bool = True,
         name: str = "NEAT",
         **kwargs: Any,
     ) -> None:
@@ -56,6 +60,10 @@ class NEAT(keras.optimizers.Optimizer):
             adaptive_correction_decay=adaptive_correction_decay,
             adaptive_correction_min_scale=adaptive_correction_min_scale,
             adaptive_correction_max_scale=adaptive_correction_max_scale,
+            adaptive_preconditioning=adaptive_preconditioning,
+            second_moment_beta=second_moment_beta,
+            bias_correction=bias_correction,
+            precondition_nce=precondition_nce,
             native="never",
         )
         super().__init__(
@@ -85,11 +93,16 @@ class NEAT(keras.optimizers.Optimizer):
         self.adaptive_correction_decay = config.adaptive_correction_decay
         self.adaptive_correction_min_scale = config.adaptive_correction_min_scale
         self.adaptive_correction_max_scale = config.adaptive_correction_max_scale
+        self.adaptive_preconditioning = config.adaptive_preconditioning
+        self.second_moment_beta = config.second_moment_beta
+        self.bias_correction = config.bias_correction
+        self.precondition_nce = config.precondition_nce
         self.spec_version = "nce_spec_v1"
         self.momentums = []
         self.nces = []
         self.previous_gradients = []
         self.gradient_emas = []
+        self.second_moments = []
         self.conflict_emas = []
         self.diagnostic_conflict_sum = None
         self.diagnostic_correction_ratio_sum = None
@@ -106,6 +119,7 @@ class NEAT(keras.optimizers.Optimizer):
         self.nces = self.add_optimizer_variables(variables, "nce")
         self.previous_gradients = self.add_optimizer_variables(variables, "prev_grad")
         self.gradient_emas = self.add_optimizer_variables(variables, "grad_ema")
+        self.second_moments = self.add_optimizer_variables(variables, "second_moment")
         self.conflict_emas = self.add_optimizer_variables(variables, "conflict_ema")
         self.diagnostic_conflict_sum = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_conflict_sum"
@@ -170,6 +184,10 @@ class NEAT(keras.optimizers.Optimizer):
         min_scale = ops.cast(self.adaptive_correction_min_scale, gradient.dtype)
         max_scale = ops.cast(self.adaptive_correction_max_scale, gradient.dtype)
         return ops.clip(scale, min_scale, max_scale)
+
+    def _bias_correction(self, beta, step, dtype):
+        one = ops.cast(1.0, dtype)
+        return one - ops.power(ops.cast(beta, dtype), step)
 
     def _compute_nce(self, gradient, opponent, step, conflict_ema):
         if self.nce_mode == "off":
@@ -243,14 +261,38 @@ class NEAT(keras.optimizers.Optimizer):
         nce = self.nces[index]
         previous_gradient = self.previous_gradients[index]
         gradient_ema = self.gradient_emas[index]
+        second_moment = self.second_moments[index]
         conflict_ema = self.conflict_emas[index]
+        step_count = ops.cast(self.iterations + 1, variable.dtype)
+        next_second_moment = (
+            ops.cast(self.second_moment_beta, variable.dtype) * second_moment
+            + ops.cast(1.0 - self.second_moment_beta, variable.dtype)
+            * ops.square(gradient)
+        )
+        if self.bias_correction:
+            second_moment_hat = next_second_moment / self._bias_correction(
+                self.second_moment_beta,
+                step_count,
+                variable.dtype,
+            )
+        else:
+            second_moment_hat = next_second_moment
+        preconditioner = ops.sqrt(second_moment_hat) + ops.cast(
+            self.eps,
+            variable.dtype,
+        )
         opponent = self._opponent_signal(
             gradient,
             momentum,
             previous_gradient,
             gradient_ema,
         )
-        current_conflict = self._conflict_ratio(gradient, opponent)
+        nce_gradient = gradient
+        nce_opponent = opponent
+        if self.adaptive_preconditioning and self.precondition_nce:
+            nce_gradient = gradient / preconditioner
+            nce_opponent = opponent / preconditioner
+        current_conflict = self._conflict_ratio(nce_gradient, nce_opponent)
         next_conflict_ema = (
             ops.cast(self.adaptive_correction_decay, variable.dtype) * conflict_ema
             + ops.cast(1.0 - self.adaptive_correction_decay, variable.dtype)
@@ -258,18 +300,32 @@ class NEAT(keras.optimizers.Optimizer):
         )
 
         correction, conflict_ratio = self._compute_nce(
-            gradient,
-            opponent,
+            nce_gradient,
+            nce_opponent,
             self.iterations,
             next_conflict_ema,
         )
-        update_direction = gradient + correction
+        raw_correction = correction
+        if self.adaptive_preconditioning and self.precondition_nce:
+            raw_correction = correction * preconditioner
+        corrected_gradient = gradient + raw_correction
         next_momentum = (
             ops.cast(self.beta, variable.dtype) * momentum
-            + ops.cast(1.0 - self.beta, variable.dtype) * update_direction
+            + ops.cast(1.0 - self.beta, variable.dtype) * corrected_gradient
         )
+        if self.bias_correction:
+            momentum_hat = next_momentum / self._bias_correction(
+                self.beta,
+                step_count,
+                variable.dtype,
+            )
+        else:
+            momentum_hat = next_momentum
+        step_update = momentum_hat
+        if self.adaptive_preconditioning:
+            step_update = momentum_hat / preconditioner
 
-        self.assign(nce, correction)
+        self.assign(nce, raw_correction)
         self.assign(momentum, next_momentum)
         next_grad_ema = (
             ops.cast(self.opponent_ema_decay, variable.dtype) * gradient_ema
@@ -277,24 +333,25 @@ class NEAT(keras.optimizers.Optimizer):
         )
         self.assign(previous_gradient, gradient)
         self.assign(gradient_ema, next_grad_ema)
+        self.assign(second_moment, next_second_moment)
         self.assign(conflict_ema, next_conflict_ema)
 
         if self.decouple_weight_decay and self.neat_weight_decay:
             decay = ops.cast(self.neat_weight_decay, variable.dtype)
             self.assign_sub(variable, learning_rate * decay * variable)
-            self.assign_sub(variable, learning_rate * next_momentum)
+            self.assign_sub(variable, learning_rate * step_update)
         else:
             if self.neat_weight_decay:
                 decay_term = ops.cast(self.neat_weight_decay, variable.dtype) * variable
-                self.assign_sub(variable, learning_rate * (next_momentum + decay_term))
+                self.assign_sub(variable, learning_rate * (step_update + decay_term))
             else:
-                self.assign_sub(variable, learning_rate * next_momentum)
+                self.assign_sub(variable, learning_rate * step_update)
         self._apply_sparsity(variable, learning_rate)
 
-        correction_norm = self._l2_norm(correction)
+        correction_norm = self._l2_norm(raw_correction)
         grad_norm = self._l2_norm(gradient)
         correction_ratio = correction_norm / (grad_norm + self.eps)
-        update_alignment = self._cosine_similarity(gradient, update_direction)
+        update_alignment = self._cosine_similarity(gradient, corrected_gradient)
         opponent_norm = self._l2_norm(opponent)
         correction_active = ops.cast(correction_norm > self.eps, "float32")
         self.assign_add(
@@ -378,6 +435,10 @@ class NEAT(keras.optimizers.Optimizer):
                 "adaptive_correction_decay": self.adaptive_correction_decay,
                 "adaptive_correction_min_scale": self.adaptive_correction_min_scale,
                 "adaptive_correction_max_scale": self.adaptive_correction_max_scale,
+                "adaptive_preconditioning": self.adaptive_preconditioning,
+                "second_moment_beta": self.second_moment_beta,
+                "bias_correction": self.bias_correction,
+                "precondition_nce": self.precondition_nce,
             }
         )
         return config

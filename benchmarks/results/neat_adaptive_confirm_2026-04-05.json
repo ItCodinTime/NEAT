@@ -1,0 +1,385 @@
+{
+  "task": "keras_mlp_digits",
+  "date": "2026-04-05",
+  "environment": {
+    "python": "3.12.13",
+    "platform": "macOS-15.5-arm64-arm-64bit",
+    "tensorflow": "2.21.0",
+    "keras": "3.13.2",
+    "dataset": "sklearn_digits"
+  },
+  "config": {
+    "seeds": [
+      7,
+      11,
+      19
+    ],
+    "epochs": 20,
+    "batch_size": 64,
+    "hidden_units": [
+      128,
+      64
+    ],
+    "validation_fraction": 0.2,
+    "player_batch_size": 32
+  },
+  "dataset": {
+    "train_shape": [
+      1077,
+      64
+    ],
+    "val_shape": [
+      360,
+      64
+    ],
+    "test_shape": [
+      360,
+      64
+    ]
+  },
+  "optimizers": [
+    {
+      "label": "sgd_momentum",
+      "family": "sgd_momentum",
+      "config": {
+        "learning_rate": 0.01
+      }
+    },
+    {
+      "label": "adam",
+      "family": "adam",
+      "config": {
+        "learning_rate": 0.001
+      }
+    },
+    {
+      "label": "neat_adaptive_best",
+      "family": "neat",
+      "config": {
+        "learning_rate": 0.008,
+        "alpha": 0.25,
+        "beta": 0.9,
+        "opponent_source": "previous_gradient",
+        "nce_mode": "projection",
+        "nce_clip_ratio": 1.0,
+        "adaptive_correction": true,
+        "adaptive_correction_decay": 0.9,
+        "adaptive_correction_min_scale": 1.0,
+        "adaptive_correction_max_scale": 2.5,
+        "adaptive_preconditioning": true,
+        "second_moment_beta": 0.999,
+        "bias_correction": true,
+        "precondition_nce": true,
+        "correction_warmup_steps": 0,
+        "conflict_threshold": 0.0
+      }
+    }
+  ],
+  "trials": [
+    {
+      "optimizer": "sgd_momentum",
+      "optimizer_family": "sgd_momentum",
+      "optimizer_config": {
+        "learning_rate": 0.01
+      },
+      "seed": 7,
+      "epochs": 20,
+      "train_loss": 0.02582571655511856,
+      "train_accuracy": 0.999071478843689,
+      "val_loss": 0.18837083876132965,
+      "val_accuracy": 0.9583333134651184,
+      "test_loss": 0.16743502020835876,
+      "test_accuracy": 0.9611111283302307,
+      "seconds": 1.4842963330011116,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "sgd_momentum",
+      "optimizer_family": "sgd_momentum",
+      "optimizer_config": {
+        "learning_rate": 0.01
+      },
+      "seed": 11,
+      "epochs": 20,
+      "train_loss": 0.025392970070242882,
+      "train_accuracy": 0.999071478843689,
+      "val_loss": 0.11227592080831528,
+      "val_accuracy": 0.9611111283302307,
+      "test_loss": 0.10499758273363113,
+      "test_accuracy": 0.9750000238418579,
+      "seconds": 2.2726525830003084,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "sgd_momentum",
+      "optimizer_family": "sgd_momentum",
+      "optimizer_config": {
+        "learning_rate": 0.01
+      },
+      "seed": 19,
+      "epochs": 20,
+      "train_loss": 0.028956685215234756,
+      "train_accuracy": 0.9981430172920227,
+      "val_loss": 0.091213159263134,
+      "val_accuracy": 0.9666666388511658,
+      "test_loss": 0.09690650552511215,
+      "test_accuracy": 0.9750000238418579,
+      "seconds": 2.116719749996264,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "adam",
+      "optimizer_family": "adam",
+      "optimizer_config": {
+        "learning_rate": 0.001
+      },
+      "seed": 7,
+      "epochs": 20,
+      "train_loss": 0.013956419192254543,
+      "train_accuracy": 1.0,
+      "val_loss": 0.11032769829034805,
+      "val_accuracy": 0.9638888835906982,
+      "test_loss": 0.14840196073055267,
+      "test_accuracy": 0.9611111283302307,
+      "seconds": 2.066213666003023,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "adam",
+      "optimizer_family": "adam",
+      "optimizer_config": {
+        "learning_rate": 0.001
+      },
+      "seed": 11,
+      "epochs": 20,
+      "train_loss": 0.011354372836649418,
+      "train_accuracy": 1.0,
+      "val_loss": 0.08863715827465057,
+      "val_accuracy": 0.9611111283302307,
+      "test_loss": 0.09926966577768326,
+      "test_accuracy": 0.9666666388511658,
+      "seconds": 2.388677875002031,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "adam",
+      "optimizer_family": "adam",
+      "optimizer_config": {
+        "learning_rate": 0.001
+      },
+      "seed": 19,
+      "epochs": 20,
+      "train_loss": 0.014082870446145535,
+      "train_accuracy": 1.0,
+      "val_loss": 0.07161161303520203,
+      "val_accuracy": 0.9777777791023254,
+      "test_loss": 0.1094103679060936,
+      "test_accuracy": 0.9777777791023254,
+      "seconds": 33.99107754099532,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "neat_adaptive_best",
+      "optimizer_family": "neat",
+      "optimizer_config": {
+        "learning_rate": 0.008,
+        "alpha": 0.25,
+        "beta": 0.9,
+        "opponent_source": "previous_gradient",
+        "nce_mode": "projection",
+        "nce_clip_ratio": 1.0,
+        "adaptive_correction": true,
+        "adaptive_correction_decay": 0.9,
+        "adaptive_correction_min_scale": 1.0,
+        "adaptive_correction_max_scale": 2.5,
+        "adaptive_preconditioning": true,
+        "second_moment_beta": 0.999,
+        "bias_correction": true,
+        "precondition_nce": true,
+        "correction_warmup_steps": 0,
+        "conflict_threshold": 0.0
+      },
+      "seed": 7,
+      "epochs": 20,
+      "train_loss": 0.0002460624964442104,
+      "train_accuracy": 1.0,
+      "val_loss": 0.15305280685424805,
+      "val_accuracy": 0.9777777791023254,
+      "test_loss": 0.1517113745212555,
+      "test_accuracy": 0.9722222089767456,
+      "seconds": 6.706716207998397,
+      "mean_conflict_ratio": 0.07903857511632582,
+      "mean_correction_ratio": 0.014108955158906825,
+      "mean_update_alignment": 0.9420106775620405,
+      "mean_opponent_norm": 0.05958959168078853,
+      "correction_active_fraction": 0.43137254901960786
+    },
+    {
+      "optimizer": "neat_adaptive_best",
+      "optimizer_family": "neat",
+      "optimizer_config": {
+        "learning_rate": 0.008,
+        "alpha": 0.25,
+        "beta": 0.9,
+        "opponent_source": "previous_gradient",
+        "nce_mode": "projection",
+        "nce_clip_ratio": 1.0,
+        "adaptive_correction": true,
+        "adaptive_correction_decay": 0.9,
+        "adaptive_correction_min_scale": 1.0,
+        "adaptive_correction_max_scale": 2.5,
+        "adaptive_preconditioning": true,
+        "second_moment_beta": 0.999,
+        "bias_correction": true,
+        "precondition_nce": true,
+        "correction_warmup_steps": 0,
+        "conflict_threshold": 0.0
+      },
+      "seed": 11,
+      "epochs": 20,
+      "train_loss": 0.0001695927930995822,
+      "train_accuracy": 1.0,
+      "val_loss": 0.13017162680625916,
+      "val_accuracy": 0.9722222089767456,
+      "test_loss": 0.10839098691940308,
+      "test_accuracy": 0.9750000238418579,
+      "seconds": 3.8773967919987626,
+      "mean_conflict_ratio": 0.07849669362984452,
+      "mean_correction_ratio": 0.014176187328263826,
+      "mean_update_alignment": 0.9186162612017463,
+      "mean_opponent_norm": 0.0593265084659352,
+      "correction_active_fraction": 0.3813725490196078
+    },
+    {
+      "optimizer": "neat_adaptive_best",
+      "optimizer_family": "neat",
+      "optimizer_config": {
+        "learning_rate": 0.008,
+        "alpha": 0.25,
+        "beta": 0.9,
+        "opponent_source": "previous_gradient",
+        "nce_mode": "projection",
+        "nce_clip_ratio": 1.0,
+        "adaptive_correction": true,
+        "adaptive_correction_decay": 0.9,
+        "adaptive_correction_min_scale": 1.0,
+        "adaptive_correction_max_scale": 2.5,
+        "adaptive_preconditioning": true,
+        "second_moment_beta": 0.999,
+        "bias_correction": true,
+        "precondition_nce": true,
+        "correction_warmup_steps": 0,
+        "conflict_threshold": 0.0
+      },
+      "seed": 19,
+      "epochs": 20,
+      "train_loss": 0.0002767370315268636,
+      "train_accuracy": 1.0,
+      "val_loss": 0.05584948882460594,
+      "val_accuracy": 0.9833333492279053,
+      "test_loss": 0.1590290665626526,
+      "test_accuracy": 0.9833333492279053,
+      "seconds": 2.7917757499963045,
+      "mean_conflict_ratio": 0.07612751231474035,
+      "mean_correction_ratio": 0.011924489339192709,
+      "mean_update_alignment": 0.9472548540900735,
+      "mean_opponent_norm": 0.04457581837972005,
+      "correction_active_fraction": 0.396078431372549
+    }
+  ],
+  "summary": [
+    {
+      "optimizer": "neat_adaptive_best",
+      "optimizer_family": "neat",
+      "optimizer_config": {
+        "learning_rate": 0.008,
+        "alpha": 0.25,
+        "beta": 0.9,
+        "opponent_source": "previous_gradient",
+        "nce_mode": "projection",
+        "nce_clip_ratio": 1.0,
+        "adaptive_correction": true,
+        "adaptive_correction_decay": 0.9,
+        "adaptive_correction_min_scale": 1.0,
+        "adaptive_correction_max_scale": 2.5,
+        "adaptive_preconditioning": true,
+        "second_moment_beta": 0.999,
+        "bias_correction": true,
+        "precondition_nce": true,
+        "correction_warmup_steps": 0,
+        "conflict_threshold": 0.0
+      },
+      "num_trials": 3,
+      "mean_test_accuracy": 0.9768518606821696,
+      "std_test_accuracy": 0.00472132285011922,
+      "mean_test_loss": 0.13971047600110373,
+      "mean_val_accuracy": 0.9777777791023254,
+      "mean_seconds": 4.458629583331155,
+      "mean_conflict_ratio": 0.07788759368697024,
+      "mean_correction_ratio": 0.013403210608787788,
+      "mean_update_alignment": 0.9359605976179535,
+      "mean_opponent_norm": 0.054497306175481264,
+      "correction_active_fraction": 0.4029411764705882
+    },
+    {
+      "optimizer": "sgd_momentum",
+      "optimizer_family": "sgd_momentum",
+      "optimizer_config": {
+        "learning_rate": 0.01
+      },
+      "num_trials": 3,
+      "mean_test_accuracy": 0.9703703920046488,
+      "std_test_accuracy": 0.00654728813297533,
+      "mean_test_loss": 0.12311303615570068,
+      "mean_val_accuracy": 0.9620370268821716,
+      "mean_seconds": 1.9578895553325613,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    },
+    {
+      "optimizer": "adam",
+      "optimizer_family": "adam",
+      "optimizer_config": {
+        "learning_rate": 0.001
+      },
+      "num_trials": 3,
+      "mean_test_accuracy": 0.9685185154279073,
+      "std_test_accuracy": 0.006928992092714707,
+      "mean_test_loss": 0.11902733147144318,
+      "mean_val_accuracy": 0.9675925970077515,
+      "mean_seconds": 12.815323027333458,
+      "mean_conflict_ratio": null,
+      "mean_correction_ratio": null,
+      "mean_update_alignment": null,
+      "mean_opponent_norm": null,
+      "correction_active_fraction": null
+    }
+  ]
+}
