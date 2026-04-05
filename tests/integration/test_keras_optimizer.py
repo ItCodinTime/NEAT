@@ -10,6 +10,10 @@ from neat_optim.engine.reference import neat_step_reference  # noqa: E402
 from neat_optim.state import ArrayState  # noqa: E402
 
 
+def _to_numpy(tensor) -> np.ndarray:
+    return tensorflow.convert_to_tensor(tensor).numpy()
+
+
 def _run_reference(
     initial_param: np.ndarray,
     gradients: list[np.ndarray],
@@ -38,7 +42,7 @@ def _run_keras(
         optimizer.apply_gradients(
             [(keras.ops.array(gradient, dtype="float32"), variable)]
         )
-    return optimizer, keras.ops.convert_to_numpy(variable)
+    return optimizer, _to_numpy(variable)
 
 
 def test_keras_optimizer_can_apply_gradients() -> None:
@@ -49,7 +53,7 @@ def test_keras_optimizer_can_apply_gradients() -> None:
 
     optimizer.apply_gradients([(gradient, variable)])
 
-    values = keras.ops.convert_to_numpy(variable)
+    values = _to_numpy(variable)
     assert values.shape == (2,)
     assert optimizer.variables
 
@@ -99,12 +103,12 @@ def test_keras_optimizer_matches_reference_projection_mode() -> None:
 
     np.testing.assert_allclose(keras_param, reference.param, atol=1e-6)
     np.testing.assert_allclose(
-        keras.ops.convert_to_numpy(optimizer.momentums[0]),
+        _to_numpy(optimizer.momentums[0]),
         reference.state.momentum,
         atol=1e-6,
     )
     np.testing.assert_allclose(
-        keras.ops.convert_to_numpy(optimizer.nces[0]),
+        _to_numpy(optimizer.nces[0]),
         reference.state.nce,
         atol=1e-6,
     )
@@ -134,7 +138,7 @@ def test_keras_optimizer_matches_reference_with_weight_decay_modes() -> None:
     )
     np.testing.assert_allclose(decoupled_param, decoupled_reference.param, atol=1e-6)
     np.testing.assert_allclose(
-        keras.ops.convert_to_numpy(decoupled_optimizer.momentums[0]),
+        _to_numpy(decoupled_optimizer.momentums[0]),
         decoupled_reference.state.momentum,
         atol=1e-6,
     )
@@ -159,7 +163,7 @@ def test_keras_optimizer_matches_reference_with_weight_decay_modes() -> None:
     )
     np.testing.assert_allclose(coupled_param, coupled_reference.param, atol=1e-6)
     np.testing.assert_allclose(
-        keras.ops.convert_to_numpy(coupled_optimizer.momentums[0]),
+        _to_numpy(coupled_optimizer.momentums[0]),
         coupled_reference.state.momentum,
         atol=1e-6,
     )
@@ -191,7 +195,7 @@ def test_keras_optimizer_matches_reference_when_nce_is_disabled() -> None:
 
     np.testing.assert_allclose(keras_param, reference.param, atol=1e-6)
     np.testing.assert_allclose(
-        keras.ops.convert_to_numpy(optimizer.nces[0]),
+        _to_numpy(optimizer.nces[0]),
         np.zeros_like(initial_param),
         atol=1e-6,
     )
