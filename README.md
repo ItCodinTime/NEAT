@@ -12,7 +12,7 @@ independently.
 - Reference core: NumPy
 - Native acceleration: optional CPU-only C++ extension for the NumPy engine
 - Tested focus for the first release line: Linux and macOS
-- Python support target: 3.10+
+- Python support target: 3.10 to 3.13
 - Keras runtime note: you must install and configure a supported Keras backend
   runtime separately, such as TensorFlow
 
@@ -36,6 +36,13 @@ Developer environment:
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,keras]"
+pytest
+```
+
+Core-only validation on Python 3.13:
+
+```bash
+pip install -e ".[dev]"
 pytest
 ```
 
@@ -146,6 +153,12 @@ ruff format .
 pytest
 python -m build
 ```
+
+## Open Source Policy
+
+- Contributor guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- Security policy: [`SECURITY.md`](SECURITY.md)
 
 ## Roadmap
 

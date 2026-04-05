@@ -15,4 +15,5 @@ ruff check .
 ruff format .
 pytest
 python -m build
+mkdocs build --strict
 ```

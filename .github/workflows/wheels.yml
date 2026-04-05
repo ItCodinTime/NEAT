@@ -16,4 +16,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pypa/cibuildwheel@v2.21.3
         env:
-          CIBW_BUILD: "cp310-* cp311-* cp312-*"
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
