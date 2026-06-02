@@ -1,44 +1,63 @@
-# NEAT
+<section class="neat-hero">
+  <div>
+    <p class="neat-eyebrow">Keras-first optimizer library</p>
+    <h1 class="neat-title">Nash-Equilibrium Adaptive Training</h1>
+    <p class="neat-lede">
+      NEAT adds conflict-aware gradient correction to neural network training.
+      Use it as a Keras 3 optimizer, validate the update rule in NumPy, and
+      inspect training diagnostics while experiments run.
+    </p>
+    <div class="neat-actions">
+      <a class="neat-button neat-button-primary" href="quickstart/">Quickstart</a>
+      <a class="neat-button" href="api/">API Reference</a>
+      <a class="neat-button" href="research/math-spec/">Math Spec</a>
+    </div>
+  </div>
+  <div class="neat-panel">
 
-NEAT is a Keras-first optimizer library built around a Nash-inspired gradient
-conflict correction term. The repository is structured so the update rule can
-be reasoned about independently of Keras, validated in NumPy, and optionally
-accelerated with a native CPU extension.
+```python
+import keras
+from neat_optim import NEAT
 
-The package now exposes two distinct usage styles:
+model.compile(
+    optimizer=NEAT(learning_rate=1e-3),
+    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+)
+```
 
-- standard NEAT for aggregated batch gradients through the Keras optimizer API
-- player-aware NEAT for explicit per-example or per-task gradients in a custom
-  TensorFlow training loop
+  </div>
+</section>
 
-The repository also includes benchmark diagnostics and a NEAT sweep harness so
-optimizer changes can be measured instead of argued from theory alone.
+<section class="neat-grid">
+  <div class="neat-card">
+    <h3>Keras Optimizer</h3>
+    <p>Drop NEAT into <code>model.compile(...)</code> for standard Keras training workflows.</p>
+  </div>
+  <div class="neat-card">
+    <h3>Reference Engine</h3>
+    <p>Use the NumPy implementation for deterministic validation and algorithm research.</p>
+  </div>
+  <div class="neat-card">
+    <h3>Player-Aware Mode</h3>
+    <p>Treat examples or tasks as gradient players in custom TensorFlow loops.</p>
+  </div>
+</section>
 
-## Design Goals
+## Install
 
-- Keep the public API small and production-friendly.
-- Keep the optimizer math explicit and versioned.
-- Keep the core testable outside any single deep-learning framework.
-- Keep native acceleration behind the same semantics as the reference engine.
+```bash
+pip install "neat-optim[keras]" tensorflow
+```
 
-## Package Layers
+Core engine only:
 
-1. `docs/research/math-spec.md`
-   The versioned mathematical contract for the update rule.
-2. `src/neat_optim/engine/reference.py`
-   The canonical NumPy implementation used for correctness validation.
-3. `src/neat_optim/engine/native.py`
-   Optional bridge to the native CPU kernel.
-4. `src/neat_optim/keras_optimizer.py`
-   Keras optimizer adapter for model training.
-5. `src/neat_optim/engine/multiplayer.py` and `src/neat_optim/training/`
-   Explicit per-player stepping and TensorFlow helpers.
-6. `tests/`, `examples/`, and `benchmarks/`
-   Product-layer validation, usage, and measurement.
+```bash
+pip install neat-optim
+```
 
-## Start Here
+## Docs
 
-- For installation and first usage, read `Quickstart`.
-- For the public API surface, read `API`.
-- For algorithm details, read `Research`.
-- For local development and release workflow, read `Contributing`.
+- [Quickstart](quickstart.md): installation and first training examples
+- [API](api.md): public objects, configuration, and diagnostics
+- [Research](research/math-spec.md): update equations and algorithm notes
+- [Contributing](contributing/development.md): development and release workflow
