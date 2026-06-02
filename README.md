@@ -252,6 +252,8 @@ cleanly with:
 - Keras integration tests
 - reference/native parity tests
 - a real Keras MLP benchmark against SGD, Adam, and AdamW
+- a real Keras CNN benchmark on MNIST and Fashion-MNIST
+- runnable benchmark harnesses for CIFAR-10 and GLUE SST-2
 - benchmark diagnostics and sweep tooling for NEAT-specific ablations
 
 In a small real supervised-learning experiment on the `sklearn` digits dataset,
@@ -264,6 +266,13 @@ test accuracy and trails SGD/Adam baselines. The attached diagnostics show why
 that is plausible: the mean correction ratio is only `0.00385` and the mean
 gradient/update alignment is `0.99991`, so NEAT is behaving very close to its
 base update on this task.
+
+On a stronger short-transfer benchmark with a small CNN on `MNIST` and
+`Fashion-MNIST` over 3 seeds and 2 epochs, adaptive NEAT now reaches the best
+mean test accuracy on both datasets: `0.9861` vs `0.9856` for Adam on MNIST,
+and `0.8786` vs `0.8725` for Adam on Fashion-MNIST. That is better evidence
+than the digits-only benchmark, but it is still not a substitute for broader
+GPU-side benchmarks such as ImageNet or GLUE.
 
 To reproduce the benchmark:
 
@@ -281,6 +290,29 @@ In the reproducible Keras benchmark on the same digits family of task, tuned
 NEAT reached `94.72%` mean test accuracy across three seeds, versus `97.04%`
 for SGD with momentum and `96.85%` for Adam and AdamW. The detailed report is
 in [`docs/research/benchmarks.md`](docs/research/benchmarks.md).
+
+To run the short standard vision benchmark:
+
+```bash
+python benchmarks/vision_adaptive_neat_vs_baselines.py
+```
+
+To run the CIFAR-10 benchmark harness:
+
+```bash
+python benchmarks/cifar10_adaptive_neat_vs_baselines.py
+```
+
+To run the GLUE SST-2 benchmark harness:
+
+```bash
+python benchmarks/glue_sst2_adaptive_neat_vs_baselines.py
+```
+
+The CIFAR-10 and GLUE SST-2 harnesses are included so the repo can scale to
+stronger benchmark environments. They are runnable here, but full credible
+ImageNet- or broad-GLUE-style evidence still requires a stronger machine than
+this local CPU-only setup.
 
 ## Development
 
