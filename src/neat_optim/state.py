@@ -16,7 +16,10 @@ class ArrayState:
     previous_gradient: np.ndarray | None = None
     gradient_ema: np.ndarray | None = None
     second_moment: np.ndarray | None = None
+    slow_param: np.ndarray | None = None
     conflict_ema: float = 0.0
+    gradient_noise_ema: float = 0.0
+    alignment_ema: float = 0.0
     step: int = 0
 
     @classmethod
@@ -28,7 +31,10 @@ class ArrayState:
             previous_gradient=np.zeros_like(array, dtype=np.float32),
             gradient_ema=np.zeros_like(array, dtype=np.float32),
             second_moment=np.zeros_like(array, dtype=np.float32),
+            slow_param=np.asarray(array, dtype=np.float32).copy(),
             conflict_ema=0.0,
+            gradient_noise_ema=0.0,
+            alignment_ema=0.0,
             step=0,
         )
 
@@ -46,6 +52,8 @@ class StepMetrics:
     correction_ratio: float = 0.0
     update_alignment: float = 1.0
     correction_active: float = 0.0
+    effective_alpha: float = 0.0
+    gradient_noise: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

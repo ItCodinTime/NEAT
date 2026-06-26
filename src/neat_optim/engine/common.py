@@ -96,3 +96,15 @@ def update_ema(previous: np.ndarray, current: np.ndarray, decay: float) -> np.nd
     return (
         (np.float32(decay) * previous) + (np.float32(1.0 - decay) * current)
     ).astype(np.float32, copy=False)
+
+
+def centralized_gradient(gradient: np.ndarray) -> np.ndarray:
+    """Apply gradient centralization to matrix-like tensors."""
+    gradient32 = as_float32(gradient)
+    if gradient32.ndim <= 1:
+        return gradient32
+    axes = tuple(range(gradient32.ndim - 1))
+    return (gradient32 - np.mean(gradient32, axis=axes, keepdims=True)).astype(
+        np.float32,
+        copy=False,
+    )

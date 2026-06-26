@@ -12,6 +12,7 @@ nav:
       - Algorithm: research/algorithm.md
       - Player-Aware Mode: research/player-aware.md
       - Benchmarks: research/benchmarks.md
+      - Benchmark Plan: research/benchmark-plan.md
   - Contributing:
       - Development: contributing/development.md
       - Architecture: contributing/architecture.md

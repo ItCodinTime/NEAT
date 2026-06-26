@@ -16,7 +16,7 @@ pip install neat-optim
 
 ```python
 import keras
-from neat_optim import NEAT
+from neat_optim import NEAT, NEATDiagnosticsCallback
 
 model = keras.Sequential(
     [
@@ -33,6 +33,8 @@ optimizer = NEAT(
     nce_mode="projection",
     opponent_source="gradient_ema",
     correction_warmup_steps=5,
+    adaptive_alpha=True,
+    adaptive_preconditioning=True,
 )
 
 model.compile(
@@ -41,8 +43,29 @@ model.compile(
     metrics=["accuracy"],
 )
 
-model.fit(x_train, y_train, epochs=5, verbose=0)
+model.fit(
+    x_train,
+    y_train,
+    epochs=5,
+    verbose=0,
+    callbacks=[NEATDiagnosticsCallback(log_dir="runs/neat")],
+)
 print(optimizer.diagnostic_snapshot())
+```
+
+For Lion-style sign updates or Lookahead, opt in explicitly:
+
+```python
+optimizer = NEAT(
+    learning_rate=3e-4,
+    alpha=0.2,
+    update_mode="lion",
+    adaptive_alpha=True,
+    gradient_centralization=True,
+    nesterov=True,
+    lookahead_k=5,
+    lookahead_alpha=0.5,
+)
 ```
 
 ## Train With Explicit Per-Example Players

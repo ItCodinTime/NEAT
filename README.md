@@ -35,7 +35,14 @@ The standard optimizer now also exposes research knobs for:
 - opponent source selection: `momentum`, `previous_gradient`, or `gradient_ema`
 - correction warmup via `correction_warmup_steps`
 - conflict gating via `conflict_threshold`
+- adaptive alpha via `adaptive_alpha`
+- diagonal second-moment preconditioning via `adaptive_preconditioning`
+- Lion-style sign updates via `update_mode="lion"`
+- gradient centralization via `gradient_centralization`
+- Nesterov-style momentum via `nesterov`
+- Lookahead slow-weight synchronization via `lookahead_k`
 - per-run optimizer diagnostics via `diagnostic_snapshot()`
+  or epoch-level TensorBoard logging with `NEATDiagnosticsCallback`
 
 ## Current Status
 
@@ -45,7 +52,8 @@ The standard optimizer now also exposes research knobs for:
 - Tested platforms: Linux and macOS
 - Supported Python versions: 3.10 to 3.13
 - Supported Keras setup: install `keras` plus a backend runtime such as
-  TensorFlow
+  TensorFlow. The optimizer is written against Keras 3 APIs; TensorFlow is the
+  currently exercised integration backend in this repo.
 
 ## Why This Repository Exists
 
@@ -111,6 +119,8 @@ optimizer = NEAT(
     nce_mode="projection",
     opponent_source="gradient_ema",
     correction_warmup_steps=5,
+    adaptive_alpha=True,
+    adaptive_preconditioning=True,
 )
 
 model.compile(
@@ -183,6 +193,7 @@ states = result.states
 The first release intentionally keeps the public API narrow:
 
 - `neat_optim.NEAT`
+- `neat_optim.NEATDiagnosticsCallback`
 - `neat_optim.NEATConfig`
 - `neat_optim.PlayerNEATConfig`
 - `neat_optim.ArrayState`
@@ -211,6 +222,17 @@ The default `o_t` is the previous momentum vector, but the standard optimizer
 can also use the previous raw gradient or an exponential moving average of
 gradients. The correction can be delayed with a warmup or suppressed unless
 the measured conflict clears a threshold.
+
+Optional research modes extend the same base update without changing defaults:
+
+- `adaptive_alpha=True` makes the correction strength respond to conflict,
+  gradient-noise, and alignment trends.
+- `adaptive_preconditioning=True` adds a cheap diagonal second-moment
+  preconditioner, similar in spirit to Fisher/Hessian-diagonal scaling.
+- `update_mode="lion"` applies a sign-based final update after the NEAT
+  correction.
+- `gradient_centralization=True`, `nesterov=True`, and `lookahead_k > 0` enable
+  standard training stabilizers that are useful benchmark ablations.
 
 This is Nash-inspired because the optimizer reacts to directional conflict
 between the current gradient and an opponent proxy. The exact behavior is

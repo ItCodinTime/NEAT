@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from neat_optim.exceptions import ConfigurationError
 
 VALID_NCE_MODES = {"projection", "cosine", "off"}
+VALID_UPDATE_MODES = {"momentum", "lion"}
 VALID_OPPONENT_MODES = {"mean_excluding_self", "batch_mean"}
 VALID_PLAYER_REDUCTIONS = {"mean", "sum"}
 VALID_OPPONENT_SOURCES = {
@@ -49,6 +50,15 @@ class NEATConfig:
     second_moment_beta: float = 0.999
     bias_correction: bool = False
     precondition_nce: bool = True
+    update_mode: str = "momentum"
+    adaptive_alpha: bool = False
+    adaptive_alpha_min: float = 0.0
+    adaptive_alpha_max: float = 1.0
+    gradient_noise_decay: float = 0.95
+    gradient_centralization: bool = False
+    nesterov: bool = False
+    lookahead_k: int = 0
+    lookahead_alpha: float = 0.5
     native: str = "auto"
 
     def __post_init__(self) -> None:
@@ -97,6 +107,22 @@ class NEATConfig:
             )
         if not 0.0 <= self.second_moment_beta < 1.0:
             raise ConfigurationError("second_moment_beta must be in [0, 1)")
+        if self.update_mode not in VALID_UPDATE_MODES:
+            raise ConfigurationError(
+                f"update_mode must be one of {sorted(VALID_UPDATE_MODES)}"
+            )
+        if self.adaptive_alpha_min < 0.0:
+            raise ConfigurationError("adaptive_alpha_min must be non-negative")
+        if self.adaptive_alpha_max < self.adaptive_alpha_min:
+            raise ConfigurationError(
+                "adaptive_alpha_max must be >= adaptive_alpha_min"
+            )
+        if not 0.0 <= self.gradient_noise_decay < 1.0:
+            raise ConfigurationError("gradient_noise_decay must be in [0, 1)")
+        if self.lookahead_k < 0:
+            raise ConfigurationError("lookahead_k must be non-negative")
+        if not 0.0 < self.lookahead_alpha <= 1.0:
+            raise ConfigurationError("lookahead_alpha must be in (0, 1]")
         if self.native not in {"auto", "never", "force"}:
             raise ConfigurationError("native must be one of 'auto', 'never', 'force'")
 

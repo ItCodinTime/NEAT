@@ -177,3 +177,116 @@ def test_warmup_and_conflict_threshold_gate_correction() -> None:
         threshold_result.state.nce,
         np.zeros(2, dtype=np.float32),
     )
+
+
+def test_lion_update_mode_uses_sign_update() -> None:
+    param = np.array([1.0, -2.0], dtype=np.float32)
+    grad = np.array([0.5, -0.25], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(
+        learning_rate=0.1,
+        alpha=0.0,
+        beta=0.9,
+        nce_mode="off",
+        update_mode="lion",
+    )
+
+    result = neat_step_reference(param, grad, state, config)
+
+    np.testing.assert_allclose(
+        result.param,
+        np.array([0.9, -1.9], dtype=np.float32),
+        atol=1e-6,
+    )
+    assert result.metrics.update_norm == pytest.approx(np.sqrt(2.0), abs=1e-6)
+
+
+def test_adaptive_alpha_tracks_conflict_and_gradient_noise() -> None:
+    param = np.array([1.0, 2.0], dtype=np.float32)
+    grad = np.array([1.0, 0.0], dtype=np.float32)
+    state = ArrayState(
+        momentum=np.array([-1.0, 0.0], dtype=np.float32),
+        nce=np.zeros(2, dtype=np.float32),
+        previous_gradient=np.array([-1.0, 0.0], dtype=np.float32),
+        gradient_ema=np.zeros(2, dtype=np.float32),
+        step=1,
+    )
+    config = NEATConfig(
+        learning_rate=0.1,
+        alpha=0.25,
+        beta=0.0,
+        adaptive_alpha=True,
+        adaptive_alpha_min=0.1,
+        adaptive_alpha_max=0.6,
+        gradient_noise_decay=0.5,
+        adaptive_correction_decay=0.5,
+    )
+
+    result = neat_step_reference(param, grad, state, config)
+
+    assert result.metrics.effective_alpha > config.alpha
+    assert result.metrics.effective_alpha <= config.adaptive_alpha_max
+    assert result.metrics.gradient_noise > 0.0
+    assert result.state.gradient_noise_ema > 0.0
+
+
+def test_gradient_centralization_subtracts_feature_mean() -> None:
+    param = np.zeros((2, 2), dtype=np.float32)
+    grad = np.array([[1.0, 3.0], [5.0, 7.0]], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(
+        learning_rate=1.0,
+        alpha=0.0,
+        beta=0.0,
+        nce_mode="off",
+        gradient_centralization=True,
+    )
+
+    result = neat_step_reference(param, grad, state, config)
+
+    expected_grad = np.array([[-2.0, -2.0], [2.0, 2.0]], dtype=np.float32)
+    np.testing.assert_allclose(result.state.momentum, expected_grad, atol=1e-6)
+    np.testing.assert_allclose(result.param, -expected_grad, atol=1e-6)
+
+
+def test_nesterov_uses_lookahead_momentum_update() -> None:
+    param = np.array([1.0, -2.0], dtype=np.float32)
+    grad = np.array([0.5, -0.25], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(
+        learning_rate=0.1,
+        alpha=0.0,
+        beta=0.9,
+        nce_mode="off",
+        nesterov=True,
+    )
+
+    result = neat_step_reference(param, grad, state, config)
+
+    momentum = 0.1 * grad
+    expected_update = (0.9 * momentum) + (0.1 * grad)
+    np.testing.assert_allclose(result.param, param - (0.1 * expected_update), atol=1e-6)
+
+
+def test_lookahead_syncs_slow_parameter_every_k_steps() -> None:
+    param = np.array([1.0, 2.0], dtype=np.float32)
+    grad = np.array([1.0, 0.0], dtype=np.float32)
+    state = ArrayState.zeros_like(param)
+    config = NEATConfig(
+        learning_rate=0.1,
+        alpha=0.0,
+        beta=0.0,
+        nce_mode="off",
+        lookahead_k=2,
+        lookahead_alpha=0.5,
+    )
+
+    first = neat_step_reference(param, grad, state, config)
+    second = neat_step_reference(first.param, grad, first.state, config)
+
+    np.testing.assert_allclose(first.param, np.array([0.9, 2.0], dtype=np.float32))
+    np.testing.assert_allclose(second.param, np.array([0.9, 2.0], dtype=np.float32))
+    np.testing.assert_allclose(
+        second.state.slow_param,
+        np.array([0.9, 2.0], dtype=np.float32),
+    )

@@ -25,6 +25,15 @@ def test_valid_config_round_trip() -> None:
         second_moment_beta=0.995,
         bias_correction=False,
         precondition_nce=False,
+        update_mode="lion",
+        adaptive_alpha=True,
+        adaptive_alpha_min=0.05,
+        adaptive_alpha_max=0.75,
+        gradient_noise_decay=0.7,
+        gradient_centralization=True,
+        nesterov=True,
+        lookahead_k=5,
+        lookahead_alpha=0.4,
     )
     payload = config.as_dict()
     assert payload["learning_rate"] == pytest.approx(1e-2)
@@ -46,6 +55,15 @@ def test_valid_config_round_trip() -> None:
     assert payload["second_moment_beta"] == pytest.approx(0.995)
     assert payload["bias_correction"] is False
     assert payload["precondition_nce"] is False
+    assert payload["update_mode"] == "lion"
+    assert payload["adaptive_alpha"] is True
+    assert payload["adaptive_alpha_min"] == pytest.approx(0.05)
+    assert payload["adaptive_alpha_max"] == pytest.approx(0.75)
+    assert payload["gradient_noise_decay"] == pytest.approx(0.7)
+    assert payload["gradient_centralization"] is True
+    assert payload["nesterov"] is True
+    assert payload["lookahead_k"] == 5
+    assert payload["lookahead_alpha"] == pytest.approx(0.4)
 
 
 @pytest.mark.parametrize(
@@ -66,6 +84,10 @@ def test_valid_config_round_trip() -> None:
         ("adaptive_correction_decay", 1.0),
         ("adaptive_correction_min_scale", 0.0),
         ("second_moment_beta", 1.0),
+        ("adaptive_alpha_min", -0.1),
+        ("gradient_noise_decay", 1.0),
+        ("lookahead_k", -1),
+        ("lookahead_alpha", 0.0),
     ],
 )
 def test_invalid_config_values(field: str, value: float) -> None:
@@ -79,12 +101,22 @@ def test_invalid_opponent_source() -> None:
         NEATConfig(opponent_source="invalid")
 
 
+def test_invalid_update_mode() -> None:
+    with pytest.raises(ConfigurationError):
+        NEATConfig(update_mode="invalid")
+
+
 def test_invalid_adaptive_scale_range() -> None:
     with pytest.raises(ConfigurationError):
         NEATConfig(
             adaptive_correction_min_scale=2.0,
             adaptive_correction_max_scale=1.5,
         )
+
+
+def test_invalid_adaptive_alpha_range() -> None:
+    with pytest.raises(ConfigurationError):
+        NEATConfig(adaptive_alpha_min=0.5, adaptive_alpha_max=0.4)
 
 
 def test_valid_player_config_round_trip() -> None:

@@ -3,6 +3,9 @@
 NEAT now includes a real Keras benchmark on a real classification task in
 addition to the smaller sanity checks.
 
+For the bar required before making ImageNet, LLM fine-tuning, diffusion, or RL
+claims, see `Benchmark Plan`.
+
 ## Benchmark Tasks
 
 - quadratic convergence sanity check

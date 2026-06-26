@@ -82,6 +82,15 @@ def test_keras_optimizer_config_round_trip() -> None:
         second_moment_beta=0.995,
         bias_correction=False,
         precondition_nce=False,
+        update_mode="lion",
+        adaptive_alpha=True,
+        adaptive_alpha_min=0.05,
+        adaptive_alpha_max=0.75,
+        gradient_noise_decay=0.7,
+        gradient_centralization=True,
+        nesterov=True,
+        lookahead_k=4,
+        lookahead_alpha=0.4,
     )
     clone = NEAT.from_config(optimizer.get_config())
     assert clone.get_config()["alpha"] == pytest.approx(0.2)
@@ -105,6 +114,15 @@ def test_keras_optimizer_config_round_trip() -> None:
     assert clone.get_config()["second_moment_beta"] == pytest.approx(0.995)
     assert clone.get_config()["bias_correction"] is False
     assert clone.get_config()["precondition_nce"] is False
+    assert clone.get_config()["update_mode"] == "lion"
+    assert clone.get_config()["adaptive_alpha"] is True
+    assert clone.get_config()["adaptive_alpha_min"] == pytest.approx(0.05)
+    assert clone.get_config()["adaptive_alpha_max"] == pytest.approx(0.75)
+    assert clone.get_config()["gradient_noise_decay"] == pytest.approx(0.7)
+    assert clone.get_config()["gradient_centralization"] is True
+    assert clone.get_config()["nesterov"] is True
+    assert clone.get_config()["lookahead_k"] == 4
+    assert clone.get_config()["lookahead_alpha"] == pytest.approx(0.4)
 
 
 def test_keras_optimizer_matches_reference_projection_mode() -> None:
@@ -393,6 +411,43 @@ def test_keras_optimizer_matches_reference_with_adaptive_preconditioning() -> No
         reference.state.second_moment,
         atol=1e-6,
     )
+
+
+def test_keras_optimizer_matches_reference_with_research_modes() -> None:
+    initial_param = np.array([[1.0, -2.0], [0.5, 1.5]], dtype=np.float32)
+    gradients = [
+        np.array([[0.5, -0.25], [0.1, -0.2]], dtype=np.float32),
+        np.array([[-0.2, 0.1], [0.4, -0.3]], dtype=np.float32),
+        np.array([[0.1, -0.4], [-0.2, 0.2]], dtype=np.float32),
+        np.array([[-0.3, 0.2], [0.2, -0.1]], dtype=np.float32),
+    ]
+    kwargs = {
+        "learning_rate": 0.01,
+        "alpha": 0.25,
+        "beta": 0.8,
+        "opponent_source": "previous_gradient",
+        "adaptive_alpha": True,
+        "adaptive_alpha_min": 0.05,
+        "adaptive_alpha_max": 0.5,
+        "gradient_noise_decay": 0.5,
+        "gradient_centralization": True,
+        "nesterov": True,
+        "lookahead_k": 2,
+        "lookahead_alpha": 0.5,
+    }
+
+    optimizer, keras_param = _run_keras(initial_param, gradients, **kwargs)
+    reference = _run_reference(initial_param, gradients, **kwargs)
+
+    np.testing.assert_allclose(keras_param, reference.param, atol=1e-6)
+    np.testing.assert_allclose(
+        _to_numpy(optimizer.momentums[0]),
+        reference.state.momentum,
+        atol=1e-6,
+    )
+    snapshot = optimizer.diagnostic_snapshot()
+    assert snapshot["mean_effective_alpha"] > 0.0
+    assert snapshot["mean_gradient_noise"] >= 0.0
 
 
 def test_keras_optimizer_reports_zero_correction_when_nce_is_disabled() -> None:

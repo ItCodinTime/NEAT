@@ -22,6 +22,21 @@ Important constructor arguments:
 - `opponent_ema_decay`: decay factor used by `gradient_ema`
 - `correction_warmup_steps`: steps to wait before applying the correction
 - `conflict_threshold`: minimum conflict ratio required before correction
+- `adaptive_correction`: scales the correction using conflict and opponent
+  reliability
+- `adaptive_preconditioning`: enables the diagonal second-moment
+  preconditioner
+- `precondition_nce`: computes the correction in the preconditioned space
+- `update_mode`: `momentum` or `lion`; `lion` applies a sign-based final
+  update
+- `adaptive_alpha`: makes `alpha` dynamic from conflict, gradient noise, and
+  alignment EMAs
+- `adaptive_alpha_min` / `adaptive_alpha_max`: clamps the dynamic alpha
+- `gradient_noise_decay`: EMA decay for gradient-noise and alignment signals
+- `gradient_centralization`: subtracts the feature mean from matrix-like
+  gradients before the optimizer update
+- `nesterov`: uses a Nesterov-style lookahead momentum update
+- `lookahead_k` / `lookahead_alpha`: optional Lookahead slow-weight sync
 - `sparsity_l1`: optional soft-threshold shrinkage for sparse weights
 - `prune_threshold`: optional hard pruning threshold
 
@@ -30,6 +45,35 @@ Diagnostics:
 - `diagnostic_snapshot()`: returns aggregate optimizer diagnostics gathered
   during training
 - `reset_diagnostics()`: clears those running aggregates
+
+Snapshot keys:
+
+- `mean_conflict_ratio`
+- `mean_correction_ratio`
+- `mean_update_alignment`
+- `mean_opponent_norm`
+- `correction_active_fraction`
+- `mean_effective_alpha`
+- `mean_gradient_noise`
+
+### `neat_optim.NEATDiagnosticsCallback`
+
+Keras callback for optimizer diagnostics.
+
+Use this when you want epoch-level diagnostics in memory or TensorBoard:
+
+```python
+from neat_optim import NEATDiagnosticsCallback
+
+callbacks = [
+    NEATDiagnosticsCallback(log_dir="runs/neat", reset_each_epoch=True),
+]
+model.fit(x_train, y_train, callbacks=callbacks)
+```
+
+If `log_dir` is set, TensorFlow must be installed because the callback writes
+with `tf.summary`. Without `log_dir`, the callback stores snapshots in
+`callback.history`.
 
 ### `neat_optim.NEATConfig`
 
@@ -48,6 +92,11 @@ Fields:
 - `nce`
 - `previous_gradient`
 - `gradient_ema`
+- `second_moment`
+- `slow_param`
+- `conflict_ema`
+- `gradient_noise_ema`
+- `alignment_ema`
 - `step`
 
 Create a zero-initialized state with `ArrayState.zeros_like(array)`.

@@ -47,6 +47,15 @@ def neat_step(
         and config.second_moment_beta == 0.999
         and not config.bias_correction
         and config.precondition_nce
+        and config.update_mode == "momentum"
+        and not config.adaptive_alpha
+        and config.adaptive_alpha_min == 0.0
+        and config.adaptive_alpha_max == 1.0
+        and config.gradient_noise_decay == 0.95
+        and not config.gradient_centralization
+        and not config.nesterov
+        and config.lookahead_k == 0
+        and config.lookahead_alpha == 0.5
     ):
         try:
             pre_momentum = as_float32(state.momentum).copy()
