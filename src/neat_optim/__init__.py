@@ -15,6 +15,7 @@ __all__ = [
     "DenseCompactionReport",
     "DenseCompactionSearchResult",
     "NEAT",
+    "NEATDiagnosticsCallback",
     "NEATConfig",
     "PlayerNEATConfig",
     "PlayerStepMetrics",
@@ -41,6 +42,16 @@ def __getattr__(name: str):
                 "TensorFlow before importing `NEAT`."
             ) from exc
         return NEAT
+    if name == "NEATDiagnosticsCallback":
+        try:
+            from neat_optim.callbacks import NEATDiagnosticsCallback
+        except Exception as exc:  # pragma: no cover - import guard behavior
+            raise ImportError(
+                "NEAT diagnostics callbacks require the optional Keras runtime. "
+                "Install `neat-optim[keras]` and a supported backend such as "
+                "TensorFlow before importing `NEATDiagnosticsCallback`."
+            ) from exc
+        return NEATDiagnosticsCallback
     if name in {
         "DenseCompactionReport",
         "DenseCompactionSearchResult",

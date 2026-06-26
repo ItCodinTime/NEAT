@@ -37,6 +37,15 @@ class NEAT(keras.optimizers.Optimizer):
         second_moment_beta: float = 0.999,
         bias_correction: bool = False,
         precondition_nce: bool = True,
+        update_mode: str = "momentum",
+        adaptive_alpha: bool = False,
+        adaptive_alpha_min: float = 0.0,
+        adaptive_alpha_max: float = 1.0,
+        gradient_noise_decay: float = 0.95,
+        gradient_centralization: bool = False,
+        nesterov: bool = False,
+        lookahead_k: int = 0,
+        lookahead_alpha: float = 0.5,
         name: str = "NEAT",
         **kwargs: Any,
     ) -> None:
@@ -64,6 +73,15 @@ class NEAT(keras.optimizers.Optimizer):
             second_moment_beta=second_moment_beta,
             bias_correction=bias_correction,
             precondition_nce=precondition_nce,
+            update_mode=update_mode,
+            adaptive_alpha=adaptive_alpha,
+            adaptive_alpha_min=adaptive_alpha_min,
+            adaptive_alpha_max=adaptive_alpha_max,
+            gradient_noise_decay=gradient_noise_decay,
+            gradient_centralization=gradient_centralization,
+            nesterov=nesterov,
+            lookahead_k=lookahead_k,
+            lookahead_alpha=lookahead_alpha,
             native="never",
         )
         super().__init__(
@@ -97,18 +115,32 @@ class NEAT(keras.optimizers.Optimizer):
         self.second_moment_beta = config.second_moment_beta
         self.bias_correction = config.bias_correction
         self.precondition_nce = config.precondition_nce
-        self.spec_version = "nce_spec_v1"
+        self.update_mode = config.update_mode
+        self.adaptive_alpha = config.adaptive_alpha
+        self.adaptive_alpha_min = config.adaptive_alpha_min
+        self.adaptive_alpha_max = config.adaptive_alpha_max
+        self.gradient_noise_decay = config.gradient_noise_decay
+        self.gradient_centralization = config.gradient_centralization
+        self.nesterov = config.nesterov
+        self.lookahead_k = config.lookahead_k
+        self.lookahead_alpha = config.lookahead_alpha
+        self.spec_version = "nce_spec_v2"
         self.momentums = []
         self.nces = []
         self.previous_gradients = []
         self.gradient_emas = []
         self.second_moments = []
+        self.slow_weights = []
         self.conflict_emas = []
+        self.gradient_noise_emas = []
+        self.alignment_emas = []
         self.diagnostic_conflict_sum = None
         self.diagnostic_correction_ratio_sum = None
         self.diagnostic_update_alignment_sum = None
         self.diagnostic_opponent_norm_sum = None
         self.diagnostic_correction_active_sum = None
+        self.diagnostic_effective_alpha_sum = None
+        self.diagnostic_gradient_noise_sum = None
         self.diagnostic_count = None
 
     def build(self, variables) -> None:
@@ -120,7 +152,13 @@ class NEAT(keras.optimizers.Optimizer):
         self.previous_gradients = self.add_optimizer_variables(variables, "prev_grad")
         self.gradient_emas = self.add_optimizer_variables(variables, "grad_ema")
         self.second_moments = self.add_optimizer_variables(variables, "second_moment")
+        self.slow_weights = self.add_optimizer_variables(variables, "slow_weight")
         self.conflict_emas = self.add_optimizer_variables(variables, "conflict_ema")
+        self.gradient_noise_emas = self.add_optimizer_variables(
+            variables,
+            "grad_noise_ema",
+        )
+        self.alignment_emas = self.add_optimizer_variables(variables, "alignment_ema")
         self.diagnostic_conflict_sum = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_conflict_sum"
         )
@@ -135,6 +173,12 @@ class NEAT(keras.optimizers.Optimizer):
         )
         self.diagnostic_correction_active_sum = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_correction_active_sum"
+        )
+        self.diagnostic_effective_alpha_sum = self.add_variable(
+            shape=(), dtype="float32", name="diagnostic_effective_alpha_sum"
+        )
+        self.diagnostic_gradient_noise_sum = self.add_variable(
+            shape=(), dtype="float32", name="diagnostic_gradient_noise_sum"
         )
         self.diagnostic_count = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_count"
@@ -166,6 +210,12 @@ class NEAT(keras.optimizers.Optimizer):
             return gradient_ema
         return momentum
 
+    def _centralized_gradient(self, gradient):
+        if not self.gradient_centralization or len(gradient.shape) <= 1:
+            return gradient
+        axes = tuple(range(len(gradient.shape) - 1))
+        return gradient - ops.mean(gradient, axis=axes, keepdims=True)
+
     def _conflict_ratio(self, gradient, momentum):
         grad_norm = self._l2_norm(gradient)
         momentum_norm = self._l2_norm(momentum)
@@ -185,11 +235,33 @@ class NEAT(keras.optimizers.Optimizer):
         max_scale = ops.cast(self.adaptive_correction_max_scale, gradient.dtype)
         return ops.clip(scale, min_scale, max_scale)
 
+    def _gradient_noise(self, gradient, gradient_ema):
+        noise_norm = self._l2_norm(gradient - gradient_ema)
+        scale = self._l2_norm(gradient) + self._l2_norm(gradient_ema)
+        return noise_norm / (scale + ops.cast(self.eps, gradient.dtype))
+
+    def _effective_alpha(self, conflict_ema, gradient_noise_ema, alignment_ema, dtype):
+        if not self.adaptive_alpha:
+            return ops.cast(self.alpha, dtype)
+        stable_alignment = ops.maximum(ops.cast(0.0, dtype), alignment_ema)
+        scale = (
+            ops.cast(1.0, dtype)
+            + conflict_ema
+            + gradient_noise_ema
+            - (ops.cast(0.5, dtype) * stable_alignment)
+        )
+        raw_alpha = ops.cast(self.alpha, dtype) * scale
+        return ops.clip(
+            raw_alpha,
+            ops.cast(self.adaptive_alpha_min, dtype),
+            ops.cast(self.adaptive_alpha_max, dtype),
+        )
+
     def _bias_correction(self, beta, step, dtype):
         one = ops.cast(1.0, dtype)
         return one - ops.power(ops.cast(beta, dtype), step)
 
-    def _compute_nce(self, gradient, opponent, step, conflict_ema):
+    def _compute_nce(self, gradient, opponent, step, conflict_ema, effective_alpha):
         if self.nce_mode == "off":
             return ops.zeros_like(gradient), ops.cast(0.0, gradient.dtype)
 
@@ -206,7 +278,7 @@ class NEAT(keras.optimizers.Optimizer):
             conflict_ema,
         )
         correction = (
-            -ops.cast(self.alpha, gradient.dtype)
+            -effective_alpha
             * adaptive_scale
             * conflict_ratio
             * direction
@@ -256,13 +328,17 @@ class NEAT(keras.optimizers.Optimizer):
     def update_step(self, gradient, variable, learning_rate) -> None:
         learning_rate = ops.cast(learning_rate, variable.dtype)
         gradient = ops.cast(gradient, variable.dtype)
+        gradient = self._centralized_gradient(gradient)
         index = self._get_variable_index(variable)
         momentum = self.momentums[index]
         nce = self.nces[index]
         previous_gradient = self.previous_gradients[index]
         gradient_ema = self.gradient_emas[index]
         second_moment = self.second_moments[index]
+        slow_weight = self.slow_weights[index]
         conflict_ema = self.conflict_emas[index]
+        gradient_noise_ema = self.gradient_noise_emas[index]
+        alignment_ema = self.alignment_emas[index]
         step_count = ops.cast(self.iterations + 1, variable.dtype)
         next_second_moment = (
             ops.cast(self.second_moment_beta, variable.dtype) * second_moment
@@ -298,12 +374,31 @@ class NEAT(keras.optimizers.Optimizer):
             + ops.cast(1.0 - self.adaptive_correction_decay, variable.dtype)
             * current_conflict
         )
+        current_alignment = self._cosine_similarity(gradient, previous_gradient)
+        current_noise = self._gradient_noise(gradient, gradient_ema)
+        next_gradient_noise_ema = (
+            ops.cast(self.gradient_noise_decay, variable.dtype) * gradient_noise_ema
+            + ops.cast(1.0 - self.gradient_noise_decay, variable.dtype)
+            * current_noise
+        )
+        next_alignment_ema = (
+            ops.cast(self.gradient_noise_decay, variable.dtype) * alignment_ema
+            + ops.cast(1.0 - self.gradient_noise_decay, variable.dtype)
+            * current_alignment
+        )
+        effective_alpha = self._effective_alpha(
+            next_conflict_ema,
+            next_gradient_noise_ema,
+            next_alignment_ema,
+            variable.dtype,
+        )
 
         correction, conflict_ratio = self._compute_nce(
             nce_gradient,
             nce_opponent,
             self.iterations,
             next_conflict_ema,
+            effective_alpha,
         )
         raw_correction = correction
         if self.adaptive_preconditioning and self.precondition_nce:
@@ -322,8 +417,20 @@ class NEAT(keras.optimizers.Optimizer):
         else:
             momentum_hat = next_momentum
         step_update = momentum_hat
+        if self.nesterov:
+            step_update = (
+                ops.cast(self.beta, variable.dtype) * momentum_hat
+                + ops.cast(1.0 - self.beta, variable.dtype) * corrected_gradient
+            )
         if self.adaptive_preconditioning:
             step_update = momentum_hat / preconditioner
+            if self.nesterov:
+                step_update = (
+                    ops.cast(self.beta, variable.dtype) * momentum_hat
+                    + ops.cast(1.0 - self.beta, variable.dtype) * corrected_gradient
+                ) / preconditioner
+        if self.update_mode == "lion":
+            step_update = ops.sign(step_update)
 
         self.assign(nce, raw_correction)
         self.assign(momentum, next_momentum)
@@ -335,6 +442,14 @@ class NEAT(keras.optimizers.Optimizer):
         self.assign(gradient_ema, next_grad_ema)
         self.assign(second_moment, next_second_moment)
         self.assign(conflict_ema, next_conflict_ema)
+        self.assign(gradient_noise_ema, next_gradient_noise_ema)
+        self.assign(alignment_ema, next_alignment_ema)
+
+        first_step = ops.cast(ops.equal(self.iterations, 0), variable.dtype)
+        initialized_slow = (first_step * variable) + (
+            (ops.cast(1.0, variable.dtype) - first_step) * slow_weight
+        )
+        self.assign(slow_weight, initialized_slow)
 
         if self.decouple_weight_decay and self.neat_weight_decay:
             decay = ops.cast(self.neat_weight_decay, variable.dtype)
@@ -347,6 +462,19 @@ class NEAT(keras.optimizers.Optimizer):
             else:
                 self.assign_sub(variable, learning_rate * step_update)
         self._apply_sparsity(variable, learning_rate)
+        if self.lookahead_k:
+            sync_step = ops.equal(
+                ops.mod(step_count, ops.cast(self.lookahead_k, variable.dtype)),
+                ops.cast(0.0, variable.dtype),
+            )
+            next_slow = initialized_slow + (
+                ops.cast(self.lookahead_alpha, variable.dtype)
+                * (variable - initialized_slow)
+            )
+            synced_variable = ops.where(sync_step, next_slow, variable)
+            synced_slow = ops.where(sync_step, next_slow, initialized_slow)
+            self.assign(variable, synced_variable)
+            self.assign(slow_weight, synced_slow)
 
         correction_norm = self._l2_norm(raw_correction)
         grad_norm = self._l2_norm(gradient)
@@ -371,6 +499,14 @@ class NEAT(keras.optimizers.Optimizer):
             ops.cast(opponent_norm, "float32"),
         )
         self.assign_add(self.diagnostic_correction_active_sum, correction_active)
+        self.assign_add(
+            self.diagnostic_effective_alpha_sum,
+            ops.cast(ops.mean(effective_alpha), "float32"),
+        )
+        self.assign_add(
+            self.diagnostic_gradient_noise_sum,
+            ops.cast(current_noise, "float32"),
+        )
         self.assign_add(self.diagnostic_count, ops.cast(1.0, "float32"))
 
     def reset_diagnostics(self) -> None:
@@ -381,6 +517,8 @@ class NEAT(keras.optimizers.Optimizer):
         self.assign(self.diagnostic_update_alignment_sum, 0.0)
         self.assign(self.diagnostic_opponent_norm_sum, 0.0)
         self.assign(self.diagnostic_correction_active_sum, 0.0)
+        self.assign(self.diagnostic_effective_alpha_sum, 0.0)
+        self.assign(self.diagnostic_gradient_noise_sum, 0.0)
         self.assign(self.diagnostic_count, 0.0)
 
     def diagnostic_snapshot(self) -> dict[str, float]:
@@ -394,6 +532,8 @@ class NEAT(keras.optimizers.Optimizer):
                 "mean_update_alignment": 1.0,
                 "mean_opponent_norm": 0.0,
                 "correction_active_fraction": 0.0,
+                "mean_effective_alpha": 0.0,
+                "mean_gradient_noise": 0.0,
             }
         return {
             "mean_conflict_ratio": (
@@ -410,6 +550,12 @@ class NEAT(keras.optimizers.Optimizer):
             ),
             "correction_active_fraction": (
                 self._scalar_to_float(self.diagnostic_correction_active_sum) / count
+            ),
+            "mean_effective_alpha": (
+                self._scalar_to_float(self.diagnostic_effective_alpha_sum) / count
+            ),
+            "mean_gradient_noise": (
+                self._scalar_to_float(self.diagnostic_gradient_noise_sum) / count
             ),
         }
 
@@ -439,6 +585,15 @@ class NEAT(keras.optimizers.Optimizer):
                 "second_moment_beta": self.second_moment_beta,
                 "bias_correction": self.bias_correction,
                 "precondition_nce": self.precondition_nce,
+                "update_mode": self.update_mode,
+                "adaptive_alpha": self.adaptive_alpha,
+                "adaptive_alpha_min": self.adaptive_alpha_min,
+                "adaptive_alpha_max": self.adaptive_alpha_max,
+                "gradient_noise_decay": self.gradient_noise_decay,
+                "gradient_centralization": self.gradient_centralization,
+                "nesterov": self.nesterov,
+                "lookahead_k": self.lookahead_k,
+                "lookahead_alpha": self.lookahead_alpha,
             }
         )
         return config
