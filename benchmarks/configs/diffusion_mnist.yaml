@@ -1,0 +1,25 @@
+# Compact UNet-2D DDPM on MNIST
+# Requires: diffusers>=0.30
+
+task:
+  epochs: 50
+  batch_size: 128
+  diffusion_steps: 1000
+  target_loss: 0.015    # noise-prediction MSE; lower is better
+  seeds: [7, 11, 19]
+
+neat:
+  optimizer: neat
+  lr: 1.0e-4
+  weight_decay: 0.0
+  alpha: 0.25
+  beta: 0.9
+  opponent_source: previous_gradient
+  adaptive_alpha: true
+  adaptive_preconditioning: true
+  bias_correction: true
+
+adamw:
+  optimizer: adamw
+  lr: 1.0e-4
+  weight_decay: 0.0

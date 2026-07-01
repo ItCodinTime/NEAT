@@ -1,0 +1,41 @@
+{
+  "config": {
+    "amp": false,
+    "batch_size": 256,
+    "data_dir": "./data",
+    "dataset": "cifar10",
+    "device": "mps",
+    "epochs": 1,
+    "lr": 0.0003,
+    "model": "resnet18",
+    "optimizer": "adamw",
+    "output_dir": "benchmark-runs/calibration",
+    "seed": 7,
+    "target_accuracy": null,
+    "weight_decay": 0.0005,
+    "workers": 2
+  },
+  "environment": {
+    "device": "mps",
+    "git_commit": "124642d3a67c6d17b6da867c06994e57f0ba80f6",
+    "hostname": "Gouthams-MacBook-Pro.local",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.6",
+    "torch": "2.12.0"
+  },
+  "epochs_to_target": null,
+  "history": [
+    {
+      "epoch": 1,
+      "eval_metric": 0.4875,
+      "learning_rate": 0.0003,
+      "loss_variance": 0.06654311391137543,
+      "seconds": 229.48375420900993,
+      "train_loss": 1.7604442895675192
+    }
+  ],
+  "metric": "top1_accuracy",
+  "optimizer_diagnostics": null,
+  "target": null,
+  "wall_time_seconds": 230.51369214057922
+}

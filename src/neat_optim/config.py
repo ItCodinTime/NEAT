@@ -27,34 +27,41 @@ class NEATConfig:
     where they are user-facing.
     """
 
+    # Core momentum and Nash-conflict correction controls.
     learning_rate: float = 1e-3
     alpha: float = 0.25
     beta: float = 0.9
     nce_mode: str = "projection"
     eps: float = 1e-8
+    # Parameter regularization and correction safety bounds.
     weight_decay: float = 0.0
     decouple_weight_decay: bool = True
     nce_clip_ratio: float = 1.0
     sparsity_l1: float = 0.0
     prune_threshold: float = 0.0
+    # Historical signal used as the other "player" in the conflict estimate.
     opponent_source: str = "momentum"
     opponent_ema_decay: float = 0.9
     opponent_blend: float = 0.5
+    # Optional gates and reliability-based correction scaling.
     correction_warmup_steps: int = 0
     conflict_threshold: float = 0.0
     adaptive_correction: bool = False
     adaptive_correction_decay: float = 0.9
     adaptive_correction_min_scale: float = 1.0
     adaptive_correction_max_scale: float = 3.0
+    # Adam-style diagonal geometry shared by NCE and the final update.
     adaptive_preconditioning: bool = False
     second_moment_beta: float = 0.999
     bias_correction: bool = False
     precondition_nce: bool = True
+    # Alternative update transports and adaptive correction strength.
     update_mode: str = "momentum"
     adaptive_alpha: bool = False
     adaptive_alpha_min: float = 0.0
     adaptive_alpha_max: float = 1.0
     gradient_noise_decay: float = 0.95
+    # Orthogonal optimization techniques layered after the NEAT correction.
     gradient_centralization: bool = False
     nesterov: bool = False
     lookahead_k: int = 0

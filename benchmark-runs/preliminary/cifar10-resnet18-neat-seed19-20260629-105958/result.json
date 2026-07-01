@@ -1,0 +1,49 @@
+{
+  "config": {
+    "amp": false,
+    "batch_size": 256,
+    "data_dir": "./data",
+    "dataset": "cifar10",
+    "device": "mps",
+    "epochs": 1,
+    "lr": 0.0003,
+    "model": "resnet18",
+    "optimizer": "neat",
+    "output_dir": "benchmark-runs/preliminary",
+    "seed": 19,
+    "target_accuracy": null,
+    "weight_decay": 0.0005,
+    "workers": 2
+  },
+  "environment": {
+    "device": "mps",
+    "git_commit": "124642d3a67c6d17b6da867c06994e57f0ba80f6",
+    "hostname": "Gouthams-MacBook-Pro.local",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.6",
+    "torch": "2.12.0"
+  },
+  "epochs_to_target": null,
+  "history": [
+    {
+      "epoch": 1,
+      "eval_metric": 0.501,
+      "learning_rate": 0.0003,
+      "loss_variance": 0.06955721687231994,
+      "seconds": 319.6571340419905,
+      "train_loss": 1.7602571279418713
+    }
+  ],
+  "metric": "top1_accuracy",
+  "optimizer_diagnostics": {
+    "correction_active_fraction": 0.17766622778143515,
+    "mean_conflict_ratio": 0.013917937110154823,
+    "mean_correction_ratio": 0.000971252597269717,
+    "mean_effective_alpha": 0.41183477629747656,
+    "mean_gradient_noise": 0.7772959943902461,
+    "mean_opponent_norm": 0.10180064088827936,
+    "mean_update_alignment": 0.9588810132376601
+  },
+  "target": null,
+  "wall_time_seconds": 319.89643907546997
+}

@@ -12,6 +12,7 @@ from neat_optim.state import ArrayState, PlayerStepMetrics
 
 
 def _tensorflow():
+    """Import TensorFlow lazily so core NumPy users do not require it."""
     try:
         return import_module("tensorflow")
     except ImportError as exc:  # pragma: no cover - import guard behavior
@@ -60,6 +61,8 @@ def player_train_step(
     if len(states) != len(variables):
         raise ValueError("states must match model.trainable_variables in length.")
 
+    # A persistent tape is required because one Jacobian is requested for each
+    # trainable variable below.
     with tf.GradientTape(persistent=True) as tape:
         predictions = model(x, training=True)
         per_player_loss = tf.convert_to_tensor(loss_fn(y, predictions))
@@ -67,6 +70,8 @@ def player_train_step(
             raise ValueError(
                 "loss_fn must return per-example losses; use reduction='none'."
             )
+        # Collapse non-batch loss dimensions while preserving one scalar loss
+        # per example/player for the Jacobian calculation.
         per_player_loss = tf.reshape(
             per_player_loss,
             (tf.shape(per_player_loss)[0], -1),
@@ -76,6 +81,8 @@ def player_train_step(
 
     next_states: list[ArrayState] = []
     metrics: list[PlayerStepMetrics] = []
+    # jacobian(), unlike gradient(), retains the leading example dimension and
+    # therefore exposes the per-player gradients required by neat_player_step.
     for variable, state in zip(variables, states, strict=True):
         player_grads = tape.jacobian(
             per_player_loss,

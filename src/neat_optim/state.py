@@ -11,12 +11,15 @@ import numpy as np
 class ArrayState:
     """Per-parameter optimizer state for the reference engine."""
 
+    # Parameter-shaped history. Optional fields support features that can be
+    # disabled without changing the stable public state schema.
     momentum: np.ndarray
     nce: np.ndarray
     previous_gradient: np.ndarray | None = None
     gradient_ema: np.ndarray | None = None
     second_moment: np.ndarray | None = None
     slow_param: np.ndarray | None = None
+    # Scalar histories drive adaptive alpha and remain cheap for large tensors.
     conflict_ema: float = 0.0
     gradient_noise_ema: float = 0.0
     alignment_ema: float = 0.0

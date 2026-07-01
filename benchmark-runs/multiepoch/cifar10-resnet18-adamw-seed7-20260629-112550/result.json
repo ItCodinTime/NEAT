@@ -1,0 +1,57 @@
+{
+  "config": {
+    "amp": false,
+    "batch_size": 256,
+    "data_dir": "./data",
+    "dataset": "cifar10",
+    "device": "mps",
+    "epochs": 3,
+    "lr": 0.001,
+    "model": "resnet18",
+    "optimizer": "adamw",
+    "output_dir": "benchmark-runs/multiepoch",
+    "seed": 7,
+    "target_accuracy": 0.7,
+    "weight_decay": 0.0005,
+    "workers": 2
+  },
+  "environment": {
+    "device": "mps",
+    "git_commit": "124642d3a67c6d17b6da867c06994e57f0ba80f6",
+    "hostname": "Gouthams-MacBook-Pro.local",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.13.6",
+    "torch": "2.12.0"
+  },
+  "epochs_to_target": null,
+  "history": [
+    {
+      "epoch": 1,
+      "eval_metric": 0.5497,
+      "learning_rate": 0.001,
+      "loss_variance": 0.07259411941861173,
+      "seconds": 133.4906800410099,
+      "train_loss": 1.5866496125046088
+    },
+    {
+      "epoch": 2,
+      "eval_metric": 0.6066,
+      "learning_rate": 0.00075,
+      "loss_variance": 0.0066607005509724945,
+      "seconds": 105.23874591599451,
+      "train_loss": 1.1818750886892786
+    },
+    {
+      "epoch": 3,
+      "eval_metric": 0.6638,
+      "learning_rate": 0.0002500000000000001,
+      "loss_variance": 0.004941387151422125,
+      "seconds": 106.0631037090061,
+      "train_loss": 0.9875868388584682
+    }
+  ],
+  "metric": "top1_accuracy",
+  "optimizer_diagnostics": null,
+  "target": 0.7,
+  "wall_time_seconds": 345.2490818500519
+}

@@ -54,6 +54,20 @@ The standard optimizer now also exposes research knobs for:
 - Supported Keras setup: install `keras` plus a backend runtime such as
   TensorFlow. The optimizer is written against Keras 3 APIs; TensorFlow is the
   currently exercised integration backend in this repo.
+- Optional PyTorch adapter: `neat_optim.TorchNEAT`, used by the modern
+  reproducible benchmark suite.
+
+For large PyTorch models, `TorchNEAT(..., diagnostic_interval=10)` samples
+diagnostics every ten steps. This reduces accelerator synchronization cost and
+does not alter optimizer updates.
+
+## Modern Benchmarks
+
+The repository includes runnable comparisons for CIFAR-10/100 and ImageNet
+folders with ResNet/ViT/DeiT, GLUE SST-2 and Alpaca small-LLM fine-tuning,
+MuJoCo control, MNIST diffusion, and large-batch stability. Each run records
+convergence, loss variance, wall time, environment metadata, and optimizer
+diagnostics. See [the benchmark guide](benchmarks/torch_suite/README.md).
 
 ## Why This Repository Exists
 

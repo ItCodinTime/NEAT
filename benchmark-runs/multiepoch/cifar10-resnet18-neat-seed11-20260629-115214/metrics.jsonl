@@ -1,0 +1,3 @@
+{"epoch": 1, "eval_metric": 0.5467, "learning_rate": 0.001, "loss_variance": 0.06785084148123588, "seconds": 301.32466004199523, "train_loss": 1.585518594299044}
+{"epoch": 2, "eval_metric": 0.6304, "learning_rate": 0.00075, "loss_variance": 0.007305592682545425, "seconds": 260.1627693749906, "train_loss": 1.1737977737674907}
+{"epoch": 3, "eval_metric": 0.6629, "learning_rate": 0.0002500000000000001, "loss_variance": 0.004435126006967003, "seconds": 238.94736604100035, "train_loss": 0.9787302324358298}

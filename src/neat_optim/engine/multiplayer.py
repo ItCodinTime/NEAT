@@ -20,6 +20,7 @@ from neat_optim.utils.metrics import l2_norm
 
 
 def _validate_player_grads(param: np.ndarray, player_grads: np.ndarray) -> None:
+    """Enforce the leading-player-axis contract before numerical work."""
     if player_grads.ndim < 1:
         raise ShapeError("player_grads must have a leading player dimension.")
     if tuple(player_grads.shape[1:]) != tuple(param.shape):
@@ -34,6 +35,7 @@ def _player_opponent(
     config: PlayerNEATConfig,
     summed_grads: np.ndarray,
 ) -> np.ndarray:
+    """Return the peer-gradient signal faced by one player."""
     if config.opponent_mode == "batch_mean":
         return player_grads.mean(axis=0)
     if player_grads.shape[0] == 1:
@@ -45,6 +47,7 @@ def _aggregate_players(
     tensors: np.ndarray,
     reduction: str,
 ) -> np.ndarray:
+    """Combine player tensors using the configured batch reduction."""
     if reduction == "sum":
         return tensors.sum(axis=0)
     return tensors.mean(axis=0)
@@ -70,11 +73,15 @@ def neat_player_step(
     momentum = as_float32(state.momentum).copy()
     next_conflict_ema = state.conflict_ema
 
+    # Cache the batch sum so mean-excluding-self opponents remain O(players)
+    # rather than repeatedly summing all peers inside the loop.
     summed_grads = player_grads32.sum(axis=0)
     conflicts = []
     corrections = []
     corrected_players = []
     correction_ratios = []
+    # Correct every player independently. Aggregating first would erase the
+    # pairwise conflicts that this mode is specifically intended to retain.
     for index, gradient in enumerate(player_grads32):
         opponent = _player_opponent(player_grads32, index, config, summed_grads)
         conflict = conflict_ratio(gradient, opponent, config.eps)
@@ -120,6 +127,7 @@ def neat_player_step(
         )
         corrected_players.append((gradient + correction).astype(np.float32, copy=False))
 
+    # Reduction happens only after each player's correction is finalized.
     correction_stack = np.stack(corrections, axis=0)
     corrected_stack = np.stack(corrected_players, axis=0)
     aggregate_grad = _aggregate_players(player_grads32, config.player_reduction)
@@ -127,6 +135,8 @@ def neat_player_step(
     aggregate_update = _aggregate_players(corrected_stack, config.player_reduction)
     next_momentum = (config.beta * momentum) + ((1.0 - config.beta) * aggregate_update)
 
+    # Regularization is parameter-level, so it is applied once after player
+    # gradients have been reduced.
     if config.decouple_weight_decay and config.weight_decay:
         param32 *= 1.0 - (config.learning_rate * config.weight_decay)
         next_param = param32 - (config.learning_rate * next_momentum)

@@ -1,0 +1,30 @@
+# CIFAR-10 ResNet-18 head-to-head preset
+# Run: python -m benchmarks.torch_suite.vision <flags from neat/adamw sections below>
+
+task:
+  dataset: cifar10
+  model: resnet18
+  epochs: 100
+  batch_size: 128
+  weight_decay: 5.0e-4
+  target_accuracy: 0.92
+  seeds: [7, 11, 19]
+
+neat:
+  optimizer: neat
+  lr: 1.0e-3
+  # TorchNEAT kwargs (passed via build_optimizer)
+  alpha: 0.25
+  beta: 0.9
+  opponent_source: previous_gradient
+  adaptive_alpha: true
+  adaptive_preconditioning: true
+  bias_correction: true
+
+adamw:
+  optimizer: adamw
+  lr: 1.0e-3
+
+sgd:
+  optimizer: sgd
+  lr: 0.1  # SGD typically needs a higher base LR with cosine schedule
