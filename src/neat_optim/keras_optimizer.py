@@ -144,9 +144,12 @@ class NEAT(keras.optimizers.Optimizer):
         self.diagnostic_count = None
 
     def build(self, variables) -> None:
+        """Create one persistent optimizer-state tensor per model variable."""
         if self.built:
             return
         super().build(variables)
+        # State arrays mirror ArrayState so Keras and the reference engine can
+        # be checked against the same mathematical specification.
         self.momentums = self.add_optimizer_variables(variables, "momentum")
         self.nces = self.add_optimizer_variables(variables, "nce")
         self.previous_gradients = self.add_optimizer_variables(variables, "prev_grad")
@@ -159,6 +162,8 @@ class NEAT(keras.optimizers.Optimizer):
             "grad_noise_ema",
         )
         self.alignment_emas = self.add_optimizer_variables(variables, "alignment_ema")
+        # Diagnostics are scalar accumulators rather than parameter-sized
+        # buffers, keeping their memory overhead constant as models grow.
         self.diagnostic_conflict_sum = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_conflict_sum"
         )
@@ -185,21 +190,25 @@ class NEAT(keras.optimizers.Optimizer):
         )
 
     def _l2_norm(self, tensor) -> Any:
+        """Compute norms in float32 to protect mixed-precision stability."""
         tensor32 = ops.cast(tensor, "float32")
         return ops.sqrt(ops.sum(ops.square(tensor32)))
 
     def _projection(self, gradient, momentum):
+        """Project a gradient onto an opponent direction safely."""
         denom = ops.sum(ops.square(momentum)) + self.eps
         numer = ops.sum(gradient * momentum)
         scale = numer / denom
         return scale * momentum
 
     def _cosine_similarity(self, left, right):
+        """Return a numerically stable cosine for arbitrary tensor shapes."""
         left_norm = self._l2_norm(left)
         right_norm = self._l2_norm(right)
         return ops.sum(left * right) / ((left_norm * right_norm) + self.eps)
 
     def _opponent_signal(self, gradient, momentum, previous_gradient, gradient_ema):
+        """Select the configured historical signal used for conflict checks."""
         if self.opponent_source == "blended":
             blend = ops.cast(self.opponent_blend, gradient.dtype)
             one = ops.cast(1.0, gradient.dtype)
@@ -211,18 +220,21 @@ class NEAT(keras.optimizers.Optimizer):
         return momentum
 
     def _centralized_gradient(self, gradient):
+        """Remove feature-wise means from matrix-like Keras gradients."""
         if not self.gradient_centralization or len(gradient.shape) <= 1:
             return gradient
         axes = tuple(range(len(gradient.shape) - 1))
         return gradient - ops.mean(gradient, axis=axes, keepdims=True)
 
     def _conflict_ratio(self, gradient, momentum):
+        """Map negative cosine alignment to a non-negative conflict score."""
         grad_norm = self._l2_norm(gradient)
         momentum_norm = self._l2_norm(momentum)
         cosine = ops.sum(gradient * momentum) / ((grad_norm * momentum_norm) + self.eps)
         return ops.maximum(ops.cast(0.0, gradient.dtype), -cosine)
 
     def _adaptive_scale(self, gradient, opponent, conflict_ratio, conflict_ema):
+        """Increase correction only when opponent evidence is reliable."""
         if not self.adaptive_correction:
             return ops.cast(1.0, gradient.dtype)
 
@@ -236,11 +248,13 @@ class NEAT(keras.optimizers.Optimizer):
         return ops.clip(scale, min_scale, max_scale)
 
     def _gradient_noise(self, gradient, gradient_ema):
+        """Estimate normalized short-term gradient variation."""
         noise_norm = self._l2_norm(gradient - gradient_ema)
         scale = self._l2_norm(gradient) + self._l2_norm(gradient_ema)
         return noise_norm / (scale + ops.cast(self.eps, gradient.dtype))
 
     def _effective_alpha(self, conflict_ema, gradient_noise_ema, alignment_ema, dtype):
+        """Derive the bounded correction coefficient for the current step."""
         if not self.adaptive_alpha:
             return ops.cast(self.alpha, dtype)
         stable_alignment = ops.maximum(ops.cast(0.0, dtype), alignment_ema)
@@ -258,10 +272,12 @@ class NEAT(keras.optimizers.Optimizer):
         )
 
     def _bias_correction(self, beta, step, dtype):
+        """Return the finite-step EMA bias-correction denominator."""
         one = ops.cast(1.0, dtype)
         return one - ops.power(ops.cast(beta, dtype), step)
 
     def _compute_nce(self, gradient, opponent, step, conflict_ema, effective_alpha):
+        """Construct and clip the Nash conflict correction tensor."""
         if self.nce_mode == "off":
             return ops.zeros_like(gradient), ops.cast(0.0, gradient.dtype)
 
@@ -304,11 +320,13 @@ class NEAT(keras.optimizers.Optimizer):
         return correction * apply_mask, conflict_ratio
 
     def _scalar_to_float(self, value) -> float:
+        """Convert a backend scalar for user-facing diagnostic snapshots."""
         if hasattr(value, "numpy"):
             return float(value.numpy())
         return float(ops.convert_to_numpy(value))
 
     def _apply_sparsity(self, variable, learning_rate) -> None:
+        """Apply proximal L1 shrinkage followed by optional hard pruning."""
         if self.sparsity_l1:
             shrink = ops.cast(learning_rate * self.sparsity_l1, variable.dtype)
             shrunk = ops.sign(variable) * ops.maximum(
@@ -326,6 +344,7 @@ class NEAT(keras.optimizers.Optimizer):
             self.assign(variable, pruned)
 
     def update_step(self, gradient, variable, learning_rate) -> None:
+        """Apply one Keras update while mirroring the reference step order."""
         learning_rate = ops.cast(learning_rate, variable.dtype)
         gradient = ops.cast(gradient, variable.dtype)
         gradient = self._centralized_gradient(gradient)
@@ -340,6 +359,8 @@ class NEAT(keras.optimizers.Optimizer):
         gradient_noise_ema = self.gradient_noise_emas[index]
         alignment_ema = self.alignment_emas[index]
         step_count = ops.cast(self.iterations + 1, variable.dtype)
+        # Second-moment state is updated before conflict correction so both
+        # NCE and the final update can share the same preconditioner.
         next_second_moment = (
             ops.cast(self.second_moment_beta, variable.dtype) * second_moment
             + ops.cast(1.0 - self.second_moment_beta, variable.dtype)
@@ -357,6 +378,8 @@ class NEAT(keras.optimizers.Optimizer):
             self.eps,
             variable.dtype,
         )
+        # Opponent state is historical: it is read before current gradients are
+        # written back near the end of this method.
         opponent = self._opponent_signal(
             gradient,
             momentum,
@@ -393,6 +416,8 @@ class NEAT(keras.optimizers.Optimizer):
             variable.dtype,
         )
 
+        # NCE may be computed in normalized coordinates, but is always mapped
+        # back to gradient coordinates before momentum consumes it.
         correction, conflict_ratio = self._compute_nce(
             nce_gradient,
             nce_opponent,
@@ -404,6 +429,7 @@ class NEAT(keras.optimizers.Optimizer):
         if self.adaptive_preconditioning and self.precondition_nce:
             raw_correction = correction * preconditioner
         corrected_gradient = gradient + raw_correction
+        # Transport the corrected gradient through the selected update family.
         next_momentum = (
             ops.cast(self.beta, variable.dtype) * momentum
             + ops.cast(1.0 - self.beta, variable.dtype) * corrected_gradient
@@ -432,6 +458,8 @@ class NEAT(keras.optimizers.Optimizer):
         if self.update_mode == "lion":
             step_update = ops.sign(step_update)
 
+        # Persist history after all reads so the next step—not this one—sees the
+        # current gradient as its opponent signal.
         self.assign(nce, raw_correction)
         self.assign(momentum, next_momentum)
         next_grad_ema = (
@@ -451,6 +479,8 @@ class NEAT(keras.optimizers.Optimizer):
         )
         self.assign(slow_weight, initialized_slow)
 
+        # Weight decay precedes proximal sparsity and Lookahead to match the
+        # framework-independent reference implementation exactly.
         if self.decouple_weight_decay and self.neat_weight_decay:
             decay = ops.cast(self.neat_weight_decay, variable.dtype)
             self.assign_sub(variable, learning_rate * decay * variable)
@@ -476,6 +506,8 @@ class NEAT(keras.optimizers.Optimizer):
             self.assign(variable, synced_variable)
             self.assign(slow_weight, synced_slow)
 
+        # Accumulate backend-native scalars; conversion to Python happens only
+        # when diagnostic_snapshot() is explicitly requested.
         correction_norm = self._l2_norm(raw_correction)
         grad_norm = self._l2_norm(gradient)
         correction_ratio = correction_norm / (grad_norm + self.eps)
@@ -510,6 +542,7 @@ class NEAT(keras.optimizers.Optimizer):
         self.assign_add(self.diagnostic_count, ops.cast(1.0, "float32"))
 
     def reset_diagnostics(self) -> None:
+        """Reset all diagnostic accumulators without touching model state."""
         if self.diagnostic_count is None:
             return
         self.assign(self.diagnostic_conflict_sum, 0.0)
@@ -522,6 +555,7 @@ class NEAT(keras.optimizers.Optimizer):
         self.assign(self.diagnostic_count, 0.0)
 
     def diagnostic_snapshot(self) -> dict[str, float]:
+        """Return means of diagnostics collected since the last reset."""
         if self.diagnostic_count is None:
             return {}
         count = self._scalar_to_float(self.diagnostic_count)

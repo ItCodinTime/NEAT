@@ -35,3 +35,7 @@ neat_lion:
 Before publishing results, record the full config, commit, hardware, seeds,
 backend versions, raw logs, and NEAT diagnostic snapshot keys listed in
 `docs/research/benchmark-plan.md`.
+
+Runnable ResNet, ViT/DeiT, LLM, MuJoCo, diffusion, and large-batch presets are
+documented in `benchmarks/torch_suite/README.md`. Those runners persist the
+required metadata automatically.

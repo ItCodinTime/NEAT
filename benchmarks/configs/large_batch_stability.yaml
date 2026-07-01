@@ -1,0 +1,18 @@
+# Large-batch stability sweep
+# Sweeps batch sizes with linear-scaled LRs; measures loss variance vs batch size
+
+task:
+  dataset: cifar100
+  model: vit_small
+  batch_sizes: [128, 512, 2048]
+  base_lr: 3.0e-4        # scaled linearly with batch size
+  epochs: 100
+  seed: 7
+
+# The large_batch.py runner iterates over both optimizers automatically.
+# To change the optimizer set, edit benchmarks/torch_suite/large_batch.py
+
+optimizers: [neat, adamw]
+
+# Analysis: compare loss_variance in summary.csv across batch sizes per optimizer.
+# NEAT's adaptive correction should dampen variance growth at large batches.

@@ -1,0 +1,16 @@
+{
+  "amp": false,
+  "batch_size": 256,
+  "data_dir": "./data",
+  "dataset": "cifar10",
+  "device": "mps",
+  "epochs": 1,
+  "lr": 0.001,
+  "model": "resnet18",
+  "optimizer": "neat",
+  "output_dir": "benchmark-runs/lr-tuning",
+  "seed": 7,
+  "target_accuracy": null,
+  "weight_decay": 0.0005,
+  "workers": 2
+}

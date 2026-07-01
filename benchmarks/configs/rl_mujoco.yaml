@@ -1,0 +1,31 @@
+# MuJoCo SAC reinforcement learning preset
+# Requires: gymnasium[mujoco]>=0.29, stable-baselines3>=2.3, native MuJoCo
+
+task:
+  # Supported envs: HalfCheetah-v5, Hopper-v5, Walker2d-v5
+  env: HalfCheetah-v5
+  timesteps: 1_000_000
+  eval_frequency: 50_000
+  eval_episodes: 10
+  seeds: [7, 11, 19]
+
+targets:
+  HalfCheetah-v5: 8000
+  Hopper-v5: 2500
+  Walker2d-v5: 3000
+
+neat:
+  optimizer: neat
+  lr: 3.0e-4
+  weight_decay: 0.0
+  alpha: 0.25
+  beta: 0.9
+  opponent_source: previous_gradient
+  adaptive_alpha: true
+  adaptive_preconditioning: true
+  bias_correction: true
+
+adamw:
+  optimizer: adamw
+  lr: 3.0e-4
+  weight_decay: 0.0

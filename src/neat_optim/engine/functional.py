@@ -31,6 +31,8 @@ def neat_step(
     optional native core to accelerate execution.
     """
 
+    # The native kernel currently implements the stable v1 subset. Any newer
+    # research feature falls through to the complete NumPy specification.
     if (
         config.native != "never"
         and config.sparsity_l1 == 0.0
@@ -58,6 +60,8 @@ def neat_step(
         and config.lookahead_alpha == 0.5
     ):
         try:
+            # Preserve pre-step momentum because the in-place native kernel
+            # cannot reconstruct the opponent norm after it updates state.
             pre_momentum = as_float32(state.momentum).copy()
             native = load_native_core()
             native_metrics = native.cpu_step_inplace(
@@ -104,6 +108,8 @@ def neat_step(
             )
             return StepResult(param=param, state=state, metrics=metrics)
         except NativeCoreUnavailableError:
+            # `auto` promises graceful fallback; `force` promises a hard error
+            # when the requested compiled implementation is unavailable.
             if config.native == "force":
                 raise
 

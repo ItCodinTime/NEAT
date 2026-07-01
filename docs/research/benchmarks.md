@@ -194,3 +194,46 @@ These two harnesses were added to extend the repo toward stronger external
 benchmark expectations. They are locally smoke-tested, but the repository does
 not yet claim full CIFAR-10 convergence tables or broad GLUE/ImageNet-scale
 results from this machine.
+
+## Modern PyTorch Benchmark Suite
+
+The repository ships a full Tier-1 and Tier-2 PyTorch benchmark suite covering six
+workload categories. Each benchmark runner persists per-run `result.json` manifests
+automatically. See the [torch suite guide](../../benchmarks/torch_suite/README.md)
+for complete documentation.
+
+| Category | Script | Models | Datasets |
+|----------|--------|--------|----------|
+| Image classification | `torch_suite/vision.py` | ResNet-18/34 | CIFAR-10, CIFAR-100 |
+| Vision transformer | `torch_suite/vision.py` | ViT-S/16, DeiT-S/16 | CIFAR-100, ImageFolder |
+| LLM fine-tuning | `torch_suite/language_model.py` | TinyLlama, Phi-2, Gemma-2B | GLUE SST-2, Alpaca |
+| Reinforcement learning | `torch_suite/reinforcement_learning.py` | SAC MLP policy | HalfCheetah-v5, Hopper-v5, Walker2d-v5 |
+| Diffusion models | `torch_suite/diffusion.py` | UNet-2D DDPM | MNIST |
+| Large-batch stability | `torch_suite/large_batch.py` | ViT-S or ResNet-18 | CIFAR-100 |
+
+Quick start:
+
+```bash
+pip install -e ".[benchmarks]"
+
+# Smoke-test all categories (~5 min)
+python -m benchmarks.torch_suite.compare_all --quick
+
+# Full head-to-head suite
+python -m benchmarks.torch_suite.compare_all --output-dir benchmark-runs/full-suite
+```
+
+Reproducible YAML presets are in `benchmarks/configs/`:
+
+- `cifar10_resnet18.yaml`
+- `cifar100_resnet34.yaml`
+- `vit_cifar100.yaml`
+- `lm_sst2_tinyllama.yaml`
+- `lm_alpaca_phi2.yaml`
+- `rl_mujoco.yaml`
+- `diffusion_mnist.yaml`
+- `large_batch_stability.yaml`
+
+### Completed research reports
+
+- [CIFAR-10 ResNet-18 MPS study, 2026-06-29](cifar10-resnet18-mps-2026-06-29.md)

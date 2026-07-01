@@ -37,6 +37,7 @@ def _compute_nce(
     effective_alpha: float,
     config: NEATConfig,
 ) -> tuple[np.ndarray, float]:
+    """Build the clipped Nash conflict correction for one gradient tensor."""
     if config.nce_mode == "off":
         return np.zeros_like(gradient), 0.0
     if state_step < config.correction_warmup_steps:
@@ -73,6 +74,7 @@ def _compute_nce(
 
 
 def _bias_correction(beta: float, step: int) -> float:
+    """Return the standard finite-step EMA correction denominator."""
     return 1.0 - (beta**step)
 
 
@@ -81,6 +83,7 @@ def _opponent_signal(
     state: ArrayState,
     config: NEATConfig,
 ) -> np.ndarray:
+    """Select the historical gradient proxy configured as the opponent."""
     if config.opponent_source == "blended":
         momentum = as_float32(state.momentum)
         ema = (
@@ -104,6 +107,7 @@ def _gradient_noise(
     gradient_ema: np.ndarray,
     eps: float,
 ) -> float:
+    """Measure normalized disagreement between a gradient and its EMA."""
     noise_norm = l2_norm(gradient - gradient_ema)
     scale = l2_norm(gradient) + l2_norm(gradient_ema)
     return safe_ratio(noise_norm, scale, eps)
@@ -115,6 +119,7 @@ def _effective_alpha(
     gradient_noise_ema: float,
     alignment_ema: float,
 ) -> float:
+    """Adapt correction strength from conflict, noise, and alignment history."""
     if not config.adaptive_alpha:
         return float(config.alpha)
     stable_alignment = max(0.0, alignment_ema)
@@ -136,6 +141,8 @@ def neat_step_reference(
 ) -> StepResult:
     """Apply one NEAT step over NumPy arrays."""
 
+    # Normalize all arithmetic to float32 so this executable specification is
+    # deterministic across callers with different input dtypes.
     param32 = as_float32(param).copy()
     initial_param32 = param32.copy()
     grad32 = as_float32(grad)
@@ -152,6 +159,8 @@ def neat_step_reference(
         if state.second_moment is None
         else as_float32(state.second_moment).copy()
     )
+    # Update the diagonal second moment before forming the preconditioner used
+    # by both the correction and final parameter update.
     step_count = state.step + 1
     next_second_moment = (
         (config.second_moment_beta * second_moment)
@@ -165,6 +174,8 @@ def neat_step_reference(
     else:
         second_moment_hat = next_second_moment
     preconditioner = np.sqrt(second_moment_hat) + np.float32(config.eps)
+    # Conflict is measured against historical optimization behavior rather
+    # than another independently trained model.
     opponent = _opponent_signal(grad32, state, config)
     nce_gradient = grad32
     nce_opponent = opponent
@@ -172,6 +183,8 @@ def neat_step_reference(
         nce_gradient = grad32 / preconditioner
         nce_opponent = opponent / preconditioner
 
+    # These scalar EMAs drive adaptive alpha while remaining part of the saved
+    # optimizer state, which makes interrupted runs reproducible.
     current_conflict = conflict_ratio(nce_gradient, nce_opponent, config.eps)
     next_conflict_ema = (
         (config.adaptive_correction_decay * state.conflict_ema)
@@ -199,6 +212,8 @@ def neat_step_reference(
         next_gradient_noise_ema,
         next_alignment_ema,
     )
+    # Compute NCE in preconditioned coordinates when requested, then map it
+    # back before combining it with the raw gradient.
     nce, conflict = _compute_nce(
         nce_gradient,
         nce_opponent,
@@ -213,6 +228,8 @@ def neat_step_reference(
         else nce.astype(np.float32, copy=False)
     )
     corrected_gradient = grad32 + raw_nce
+    # Momentum, Nesterov, and Lion are alternative update transports applied
+    # after conflict correction; they do not change how conflict is detected.
     next_momentum = (config.beta * momentum) + (
         (1.0 - config.beta) * corrected_gradient
     )
@@ -235,6 +252,8 @@ def neat_step_reference(
     if config.update_mode == "lion":
         step_update = np.sign(step_update).astype(np.float32, copy=False)
 
+    # Decoupled decay scales parameters independently of the gradient update;
+    # the coupled path retains classical L2-regularization semantics.
     if config.decouple_weight_decay and config.weight_decay:
         param32 *= 1.0 - (config.learning_rate * config.weight_decay)
         next_param = param32 - (config.learning_rate * step_update)
@@ -247,6 +266,8 @@ def neat_step_reference(
         sparsity_l1=config.sparsity_l1,
         prune_threshold=config.prune_threshold,
     )
+    # Lookahead periodically replaces fast parameters with an interpolation
+    # toward a separately persisted slow copy.
     slow_param = (
         initial_param32
         if state.slow_param is None
@@ -259,6 +280,8 @@ def neat_step_reference(
         ).astype(np.float32, copy=False)
         next_param = slow_param.copy()
 
+    # Construct a new state object rather than mutating the caller's state.
+    # This property keeps the reference engine easy to test and reason about.
     next_state = ArrayState(
         momentum=next_momentum.astype(np.float32, copy=False),
         nce=raw_nce.astype(np.float32, copy=False),
@@ -273,6 +296,8 @@ def neat_step_reference(
     )
     grad_norm = l2_norm(grad32)
     nce_norm = l2_norm(raw_nce)
+    # Diagnostics describe the actual correction and update chosen above; they
+    # do not feed back into this step.
     metrics = StepMetrics(
         grad_norm=grad_norm,
         update_norm=l2_norm(step_update),

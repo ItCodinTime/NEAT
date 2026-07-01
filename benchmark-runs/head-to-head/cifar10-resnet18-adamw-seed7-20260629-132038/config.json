@@ -1,0 +1,16 @@
+{
+  "amp": false,
+  "batch_size": 512,
+  "data_dir": "./data",
+  "dataset": "cifar10",
+  "device": "auto",
+  "epochs": 10,
+  "lr": 0.001,
+  "model": "resnet18",
+  "optimizer": "adamw",
+  "output_dir": "benchmark-runs/head-to-head",
+  "seed": 7,
+  "target_accuracy": null,
+  "weight_decay": 0.0005,
+  "workers": 4
+}

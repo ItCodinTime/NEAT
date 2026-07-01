@@ -56,6 +56,30 @@ Snapshot keys:
 - `mean_effective_alpha`
 - `mean_gradient_noise`
 
+### `neat_optim.TorchNEAT`
+
+Optional PyTorch optimizer adapter used by the modern benchmark suite. Install
+the `torch` extra before importing it.
+
+```python
+from neat_optim import TorchNEAT
+
+optimizer = TorchNEAT(
+    model.parameters(),
+    lr=1e-3,
+    opponent_source="previous_gradient",
+    adaptive_alpha=True,
+    adaptive_preconditioning=True,
+    diagnostic_interval=10,
+)
+```
+
+`diagnostic_interval` controls how often parameter-level diagnostic reductions
+are sampled. It defaults to `1` for complete measurement. Larger values reduce
+accelerator synchronization overhead without changing parameter updates. The
+adapter supports normal PyTorch parameter groups, `state_dict()` checkpointing,
+closures, and the same algorithm settings validated by `NEATConfig`.
+
 ### `neat_optim.NEATDiagnosticsCallback`
 
 Keras callback for optimizer diagnostics.

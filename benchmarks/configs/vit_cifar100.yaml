@@ -1,0 +1,25 @@
+# ViT-small / DeiT-small on CIFAR-100 — vision transformer preset
+# Attention-heavy; higher weight-decay and lower LR than ResNet
+
+task:
+  dataset: cifar100
+  model: vit_small     # or deit_small
+  epochs: 200
+  batch_size: 128
+  weight_decay: 0.05
+  target_accuracy: 0.72
+  seeds: [7, 11, 19]
+
+neat:
+  optimizer: neat
+  lr: 5.0e-4
+  alpha: 0.25
+  beta: 0.9
+  opponent_source: previous_gradient
+  adaptive_alpha: true
+  adaptive_preconditioning: true
+  bias_correction: true
+
+adamw:
+  optimizer: adamw
+  lr: 5.0e-4

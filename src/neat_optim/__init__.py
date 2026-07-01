@@ -17,6 +17,7 @@ __all__ = [
     "NEAT",
     "NEATDiagnosticsCallback",
     "NEATConfig",
+    "TorchNEAT",
     "PlayerNEATConfig",
     "PlayerStepMetrics",
     "PlayerStepResult",
@@ -32,6 +33,14 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    if name == "TorchNEAT":
+        try:
+            from neat_optim.torch_optimizer import TorchNEAT
+        except Exception as exc:  # pragma: no cover - import guard behavior
+            raise ImportError(
+                "TorchNEAT requires PyTorch. Install `neat-optim[torch]`."
+            ) from exc
+        return TorchNEAT
     if name == "NEAT":
         try:
             from neat_optim.keras_optimizer import NEAT

@@ -42,6 +42,9 @@ Every benchmark report should include:
 
 ## Target Suites
 
+The executable implementations and exact starter commands live in
+[`benchmarks/torch_suite/README.md`](../../benchmarks/torch_suite/README.md).
+
 ### Vision
 
 - ResNet-50 on ImageNet-100 as the minimum credible ImageNet-style target

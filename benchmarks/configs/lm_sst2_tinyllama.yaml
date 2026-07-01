@@ -1,0 +1,32 @@
+# TinyLlama fine-tuning on GLUE SST-2 (sequence classification)
+# Uses LoRA for memory efficiency; full fine-tune by removing --lora
+
+task:
+  task: sst2
+  model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  epochs: 3
+  batch_size: 16
+  gradient_accumulation: 1
+  max_length: 256
+  lora: true
+  seeds: [7, 11, 19]
+
+neat:
+  optimizer: neat
+  lr: 2.0e-5
+  weight_decay: 0.01
+  alpha: 0.25
+  beta: 0.9
+  opponent_source: previous_gradient
+  adaptive_alpha: true
+  adaptive_preconditioning: true
+  bias_correction: true
+
+adamw:
+  optimizer: adamw
+  lr: 2.0e-5
+  weight_decay: 0.01
+
+# Larger models (swap --model):
+#   microsoft/phi-2         — 2.7B, strong SST-2 baseline
+#   google/gemma-2b         — 2B, requires HF auth
