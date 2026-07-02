@@ -1,8 +1,8 @@
 # NEAT PyTorch Benchmark Suite
 
-A reproducible, multi-domain benchmark suite comparing **NEAT** against AdamW (and SGD where
-applicable) across six workload categories: image classification, language-model fine-tuning,
-vision transformers, reinforcement learning, diffusion models, and large-batch training stability.
+A reproducible, multi-domain benchmark suite comparing NEAT with AdamW, SGD
+with momentum, and Lion. PCGrad and CAGrad run only on the explicit
+task-gradient synthetic category where their input contract applies.
 
 Every run writes a self-contained `result.json` manifest that includes the full config,
 per-epoch metrics, wall-time, environment metadata, and NEAT diagnostic snapshots.
@@ -19,7 +19,7 @@ pip install -e ".[benchmarks]"
 python -m benchmarks.torch_suite.vision \
     --dataset cifar10 --model resnet18 --optimizer neat --epochs 100
 
-# head-to-head suite (NEAT vs AdamW, all categories, quick smoke-test)
+# five-seed, dataset-free end-to-end smoke test of every baseline
 python -m benchmarks.torch_suite.compare_all --quick
 
 # full suite (long — use a GPU server)
@@ -50,13 +50,13 @@ python -m benchmarks.torch_suite.compare_all
 python -m benchmarks.torch_suite.vision \
     --dataset cifar10 --model resnet18 --optimizer neat \
     --epochs 100 --batch-size 128 --lr 1e-3 --weight-decay 5e-4 \
-    --target-accuracy 0.92 --seed 7
+    --target-accuracy 0.92 --seeds 7 11 19 23 29
 
 # AdamW baseline
 python -m benchmarks.torch_suite.vision \
     --dataset cifar10 --model resnet18 --optimizer adamw \
     --epochs 100 --batch-size 128 --lr 1e-3 --weight-decay 5e-4 \
-    --target-accuracy 0.92 --seed 7
+    --target-accuracy 0.92 --seeds 7 11 19 23 29
 ```
 
 ### CIFAR-100 with ResNet-34
@@ -90,14 +90,15 @@ python -m benchmarks.torch_suite.vision \
 |------|---------|-------|
 | `--dataset` | `cifar10` | `cifar10`, `cifar100`, `imagefolder` |
 | `--model` | `resnet18` | `resnet18`, `resnet34`, `vit_small`, `deit_small` |
-| `--optimizer` | `neat` | `neat`, `adamw`, `sgd` |
+| `--optimizer` | `neat` | `neat`, `adamw`, `sgd`, `lion` |
 | `--epochs` | `100` | Increase to 200 for full convergence studies |
 | `--batch-size` | `128` | |
 | `--lr` | `3e-4` | Tune independently per optimizer |
 | `--weight-decay` | `5e-4` | |
 | `--amp` | off | Enable mixed-precision on CUDA |
 | `--target-accuracy` | none | Records `epochs_to_target` in manifest |
-| `--seed` | `7` | Use 7, 11, 19 for variance estimates |
+| `--seeds` | `7 11 19 23 29` | Runs every listed seed automatically |
+| `--allow-single-seed` | off | Required for preliminary one-seed runs |
 | `--output-dir` | `benchmark-runs` | All artifacts written here |
 | `--device` | `auto` | `cuda`, `mps`, or `cpu` |
 

@@ -17,6 +17,23 @@ float dot(const float* a, const float* b, std::size_t n) {
   return value;
 }
 
+struct InitialReductions {
+  float grad_squared;
+  float momentum_squared;
+  float cross;
+};
+
+InitialReductions initial_reductions(
+    const float* grad, const float* momentum, std::size_t n) {
+  InitialReductions values{0.0f, 0.0f, 0.0f};
+  for (std::size_t i = 0; i < n; ++i) {
+    values.grad_squared += grad[i] * grad[i];
+    values.momentum_squared += momentum[i] * momentum[i];
+    values.cross += grad[i] * momentum[i];
+  }
+  return values;
+}
+
 float l2_norm(const float* a, std::size_t n, float eps = 0.0f) {
   return std::sqrt(std::max(dot(a, a, n) + eps, 0.0f));
 }
@@ -38,12 +55,14 @@ StepStats cpu_step_inplace(
     const char* nce_mode,
     bool decouple_weight_decay) {
   const std::string mode = nce_mode == nullptr ? "projection" : nce_mode;
-  const float grad_norm = l2_norm(grad, n, 0.0f);
-  const float momentum_norm = l2_norm(momentum, n, 0.0f);
+  const InitialReductions reductions = initial_reductions(grad, momentum, n);
+  const float grad_norm = std::sqrt(std::max(reductions.grad_squared, 0.0f));
+  const float momentum_norm =
+      std::sqrt(std::max(reductions.momentum_squared, 0.0f));
   float conflict_ratio = 0.0f;
 
   if (grad_norm > eps && momentum_norm > eps) {
-    const float cosine = dot(grad, momentum, n) / ((grad_norm * momentum_norm) + eps);
+    const float cosine = reductions.cross / ((grad_norm * momentum_norm) + eps);
     conflict_ratio = std::max(0.0f, -cosine);
   }
 
@@ -55,8 +74,8 @@ StepStats cpu_step_inplace(
         nce[i] = -alpha * conflict_ratio * grad[i];
       }
     } else {
-      const float denom = dot(momentum, momentum, n) + eps;
-      const float scale = denom <= eps ? 0.0f : dot(grad, momentum, n) / denom;
+      const float denom = reductions.momentum_squared + eps;
+      const float scale = denom <= eps ? 0.0f : reductions.cross / denom;
       for (std::size_t i = 0; i < n; ++i) {
         nce[i] = -alpha * conflict_ratio * scale * momentum[i];
       }

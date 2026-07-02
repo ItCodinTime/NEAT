@@ -7,7 +7,8 @@ installing the ``torch`` extra.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 try:
     import torch
@@ -59,6 +60,15 @@ class TorchNEAT(torch.optim.Optimizer):
 
     def _opponent(self, state: dict[str, Any]) -> torch.Tensor:
         config = self.config
+        if config.opponent_ensemble:
+            weight = config.opponent_ensemble_momentum_weight
+            if config.opponent_ensemble_schedule_steps:
+                progress = min(
+                    1.0,
+                    int(state["step"]) / config.opponent_ensemble_schedule_steps,
+                )
+                weight = weight + ((1.0 - weight) * progress)
+            return weight * state["momentum"] + (1.0 - weight) * state["gradient_ema"]
         if config.opponent_source == "previous_gradient":
             return state["previous_gradient"]
         if config.opponent_source == "gradient_ema":
@@ -88,9 +98,7 @@ class TorchNEAT(torch.optim.Optimizer):
             "mean_correction_ratio": correction_norm / (grad_norm + self.config.eps),
             "mean_update_alignment": self._cosine(gradient, corrected),
             "mean_opponent_norm": self._norm(opponent),
-            "correction_active_fraction": (
-                correction_norm > self.config.eps
-            ).float(),
+            "correction_active_fraction": (correction_norm > self.config.eps).float(),
             "mean_effective_alpha": alpha,
             "mean_gradient_noise": noise,
         }
@@ -160,7 +168,12 @@ class TorchNEAT(torch.optim.Optimizer):
                 # gradient conflict is measured.
                 opponent = self._opponent(state).clone()
                 nce_gradient, nce_opponent = gradient, opponent
-                if config.adaptive_preconditioning and config.precondition_nce:
+                precondition_correction = (
+                    config.adaptive_preconditioning
+                    and config.precondition_nce
+                    and config.correction_preconditioning_order == "legacy"
+                )
+                if precondition_correction:
                     nce_gradient = gradient / preconditioner
                     nce_opponent = opponent / preconditioner
 
@@ -187,9 +200,7 @@ class TorchNEAT(torch.optim.Optimizer):
                     config.gradient_noise_decay * state["alignment_ema"]
                     + (1.0 - config.gradient_noise_decay) * alignment
                 )
-                effective_alpha = torch.as_tensor(
-                    config.alpha, device=gradient.device
-                )
+                effective_alpha = torch.as_tensor(config.alpha, device=gradient.device)
                 if config.adaptive_alpha:
                     scale = (
                         1.0
@@ -236,18 +247,21 @@ class TorchNEAT(torch.optim.Optimizer):
                     )
                     if config.conflict_threshold:
                         correction.mul_(
-                            (conflict >= config.conflict_threshold).to(
-                                correction.dtype
-                            )
+                            (conflict >= config.conflict_threshold).to(correction.dtype)
                         )
-                    limit = config.nce_clip_ratio * self._norm(nce_gradient)
+                    bound = (
+                        config.trust_region_ratio
+                        if config.trust_region_ratio > 0.0
+                        else config.nce_clip_ratio
+                    )
+                    limit = bound * self._norm(nce_gradient)
                     correction.mul_(
                         torch.minimum(
                             torch.ones((), device=gradient.device),
                             limit / (self._norm(correction) + config.eps),
                         )
                     )
-                if config.adaptive_preconditioning and config.precondition_nce:
+                if precondition_correction:
                     correction = correction * preconditioner
                 corrected = gradient + correction
 

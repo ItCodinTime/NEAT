@@ -1,0 +1,11 @@
+{
+  "commands": [
+    [
+      "python",
+      "-m",
+      "benchmarks.torch_suite.compare_all",
+      "--output-dir",
+      "benchmark-runs/paper"
+    ]
+  ]
+}

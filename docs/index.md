@@ -1,5 +1,10 @@
 # NEAT
 
+!!! note "Name collision"
+    NEAT here means Nash-Equilibrium Adaptive Training. It is unrelated to
+    NeuroEvolution of Augmenting Topologies (NEAT; Stanley and Miikkulainen,
+    2002).
+
 NEAT is a Keras-first optimizer library built around a Nash-inspired gradient
 conflict correction term. The repository is structured so the update rule can
 be reasoned about independently of Keras, validated in NumPy, and optionally

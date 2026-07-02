@@ -91,6 +91,14 @@ def test_keras_optimizer_config_round_trip() -> None:
         nesterov=True,
         lookahead_k=4,
         lookahead_alpha=0.4,
+        spec_version="nce_spec_v3",
+        trust_region_ratio=0.2,
+        opponent_ensemble=True,
+        opponent_ensemble_momentum_weight=0.3,
+        opponent_ensemble_schedule_steps=10,
+        correction_preconditioning_order="correction_then_precondition",
+        deterministic=True,
+        diagnostic_interval=3,
     )
     clone = NEAT.from_config(optimizer.get_config())
     assert clone.get_config()["alpha"] == pytest.approx(0.2)
@@ -123,6 +131,65 @@ def test_keras_optimizer_config_round_trip() -> None:
     assert clone.get_config()["nesterov"] is True
     assert clone.get_config()["lookahead_k"] == 4
     assert clone.get_config()["lookahead_alpha"] == pytest.approx(0.4)
+    assert clone.get_config()["spec_version"] == "nce_spec_v3"
+    assert clone.get_config()["trust_region_ratio"] == pytest.approx(0.2)
+    assert clone.get_config()["opponent_ensemble"] is True
+    assert clone.get_config()["opponent_ensemble_momentum_weight"] == pytest.approx(0.3)
+    assert clone.get_config()["opponent_ensemble_schedule_steps"] == 10
+    assert (
+        clone.get_config()["correction_preconditioning_order"]
+        == "correction_then_precondition"
+    )
+    assert clone.get_config()["deterministic"] is True
+    assert clone.get_config()["diagnostic_interval"] == 3
+
+
+def test_keras_diagnostic_sampling_does_not_change_updates() -> None:
+    full_variable = keras.Variable([1.0, -1.0], dtype="float32")
+    sampled_variable = keras.Variable([1.0, -1.0], dtype="float32")
+    full = NEAT(learning_rate=0.01, diagnostic_interval=1)
+    sampled = NEAT(learning_rate=0.01, diagnostic_interval=3)
+    for _ in range(4):
+        gradient = keras.ops.array([0.2, -0.3], dtype="float32")
+        full.apply_gradients([(gradient, full_variable)])
+        sampled.apply_gradients([(gradient, sampled_variable)])
+    np.testing.assert_array_equal(_to_numpy(full_variable), _to_numpy(sampled_variable))
+    assert _to_numpy(full.diagnostic_count) == 4.0
+    assert _to_numpy(sampled.diagnostic_count) == 2.0
+
+
+@pytest.mark.parametrize(
+    "v3_options",
+    [
+        {"trust_region_ratio": 0.1},
+        {"opponent_ensemble": True, "opponent_ensemble_schedule_steps": 3},
+        {
+            "adaptive_preconditioning": True,
+            "correction_preconditioning_order": "correction_then_precondition",
+        },
+        {"deterministic": True},
+        {"conflict_granularity": "per_parameter"},
+    ],
+)
+def test_keras_v3_options_match_reference(v3_options) -> None:
+    initial = np.array([0.5, -0.75, 0.25], dtype=np.float32)
+    gradients = [
+        np.array([0.2, -0.3, 0.4], dtype=np.float32),
+        np.array([-0.4, 0.2, -0.1], dtype=np.float32),
+        np.array([0.1, 0.3, -0.2], dtype=np.float32),
+    ]
+    options = {
+        "spec_version": "nce_spec_v3",
+        "learning_rate": 0.02,
+        "beta": 0.8,
+        **v3_options,
+    }
+    optimizer, actual = _run_keras(initial, gradients, **options)
+    expected = _run_reference(initial, gradients, **options)
+    np.testing.assert_allclose(actual, expected.param, rtol=2e-5, atol=2e-6)
+    np.testing.assert_allclose(
+        _to_numpy(optimizer.nces[0]), expected.state.nce, rtol=2e-5, atol=2e-6
+    )
 
 
 def test_keras_optimizer_matches_reference_projection_mode() -> None:

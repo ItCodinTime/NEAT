@@ -199,8 +199,8 @@ results from this machine.
 
 The repository ships a full Tier-1 and Tier-2 PyTorch benchmark suite covering six
 workload categories. Each benchmark runner persists per-run `result.json` manifests
-automatically. See the [torch suite guide](../../benchmarks/torch_suite/README.md)
-for complete documentation.
+automatically. Complete command documentation lives in the repository at
+`benchmarks/torch_suite/README.md`.
 
 | Category | Script | Models | Datasets |
 |----------|--------|--------|----------|

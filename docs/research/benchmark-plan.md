@@ -42,8 +42,9 @@ Every benchmark report should include:
 
 ## Target Suites
 
-The executable implementations and exact starter commands live in
-[`benchmarks/torch_suite/README.md`](../../benchmarks/torch_suite/README.md).
+The executable implementations and exact starter commands live in the
+repository at `benchmarks/torch_suite/README.md`. See the
+[benchmark results page](benchmarks.md) for the documented suite overview.
 
 ### Vision
 

@@ -15,6 +15,7 @@ class NEAT(keras.optimizers.Optimizer):
     def __init__(
         self,
         learning_rate: float = 1e-3,
+        spec_version: str = "nce_spec_v2",
         alpha: float = 0.25,
         beta: float = 0.9,
         nce_mode: str = "projection",
@@ -46,10 +47,21 @@ class NEAT(keras.optimizers.Optimizer):
         nesterov: bool = False,
         lookahead_k: int = 0,
         lookahead_alpha: float = 0.5,
+        conflict_granularity: str = "global",
+        trust_region_ratio: float = 0.0,
+        opponent_ensemble: bool = False,
+        opponent_ensemble_momentum_weight: float = 0.5,
+        opponent_ensemble_schedule_steps: int = 0,
+        correction_preconditioning_order: str = "legacy",
+        deterministic: bool = False,
+        diagnostic_interval: int = 1,
         name: str = "NEAT",
         **kwargs: Any,
     ) -> None:
+        if diagnostic_interval < 1:
+            raise ValueError("diagnostic_interval must be at least 1")
         config = NEATConfig(
+            spec_version=spec_version,
             learning_rate=learning_rate,
             alpha=alpha,
             beta=beta,
@@ -82,6 +94,13 @@ class NEAT(keras.optimizers.Optimizer):
             nesterov=nesterov,
             lookahead_k=lookahead_k,
             lookahead_alpha=lookahead_alpha,
+            conflict_granularity=conflict_granularity,
+            trust_region_ratio=trust_region_ratio,
+            opponent_ensemble=opponent_ensemble,
+            opponent_ensemble_momentum_weight=opponent_ensemble_momentum_weight,
+            opponent_ensemble_schedule_steps=opponent_ensemble_schedule_steps,
+            correction_preconditioning_order=correction_preconditioning_order,
+            deterministic=deterministic,
             native="never",
         )
         super().__init__(
@@ -124,7 +143,17 @@ class NEAT(keras.optimizers.Optimizer):
         self.nesterov = config.nesterov
         self.lookahead_k = config.lookahead_k
         self.lookahead_alpha = config.lookahead_alpha
-        self.spec_version = "nce_spec_v2"
+        self.conflict_granularity = config.conflict_granularity
+        self.trust_region_ratio = config.trust_region_ratio
+        self.opponent_ensemble = config.opponent_ensemble
+        self.opponent_ensemble_momentum_weight = (
+            config.opponent_ensemble_momentum_weight
+        )
+        self.opponent_ensemble_schedule_steps = config.opponent_ensemble_schedule_steps
+        self.correction_preconditioning_order = config.correction_preconditioning_order
+        self.deterministic = config.deterministic
+        self.diagnostic_interval = diagnostic_interval
+        self.spec_version = config.spec_version
         self.momentums = []
         self.nces = []
         self.previous_gradients = []
@@ -207,8 +236,22 @@ class NEAT(keras.optimizers.Optimizer):
         right_norm = self._l2_norm(right)
         return ops.sum(left * right) / ((left_norm * right_norm) + self.eps)
 
-    def _opponent_signal(self, gradient, momentum, previous_gradient, gradient_ema):
+    def _opponent_signal(
+        self, gradient, momentum, previous_gradient, gradient_ema, step
+    ):
         """Select the configured historical signal used for conflict checks."""
+        if self.opponent_ensemble:
+            weight = ops.cast(self.opponent_ensemble_momentum_weight, gradient.dtype)
+            if self.opponent_ensemble_schedule_steps:
+                progress = ops.minimum(
+                    ops.cast(1.0, gradient.dtype),
+                    ops.cast(step, gradient.dtype)
+                    / ops.cast(self.opponent_ensemble_schedule_steps, gradient.dtype),
+                )
+                weight = weight + ((ops.cast(1.0, gradient.dtype) - weight) * progress)
+            return (weight * momentum) + (
+                (ops.cast(1.0, gradient.dtype) - weight) * gradient_ema
+            )
         if self.opponent_source == "blended":
             blend = ops.cast(self.opponent_blend, gradient.dtype)
             one = ops.cast(1.0, gradient.dtype)
@@ -293,15 +336,15 @@ class NEAT(keras.optimizers.Optimizer):
             conflict_ratio,
             conflict_ema,
         )
-        correction = (
-            -effective_alpha
-            * adaptive_scale
-            * conflict_ratio
-            * direction
-        )
+        correction = -effective_alpha * adaptive_scale * conflict_ratio * direction
         correction_norm = self._l2_norm(correction)
         grad_norm = self._l2_norm(gradient)
-        clip_limit = ops.cast(self.nce_clip_ratio, gradient.dtype) * grad_norm
+        bound = (
+            self.trust_region_ratio
+            if self.trust_region_ratio > 0.0
+            else self.nce_clip_ratio
+        )
+        clip_limit = ops.cast(bound, gradient.dtype) * grad_norm
         scale = ops.minimum(
             ops.cast(1.0, gradient.dtype),
             clip_limit / (correction_norm + self.eps),
@@ -343,6 +386,42 @@ class NEAT(keras.optimizers.Optimizer):
             )
             self.assign(variable, pruned)
 
+    def _record_diagnostics(
+        self,
+        gradient,
+        opponent,
+        raw_correction,
+        corrected_gradient,
+        conflict_ratio,
+        effective_alpha,
+        current_noise,
+    ) -> None:
+        """Sample diagnostic-only reductions without changing update math."""
+        should_record = ops.equal(ops.mod(self.iterations, self.diagnostic_interval), 0)
+
+        def record():
+            correction_norm = self._l2_norm(raw_correction)
+            grad_norm = self._l2_norm(gradient)
+            correction_ratio = correction_norm / (grad_norm + self.eps)
+            update_alignment = self._cosine_similarity(gradient, corrected_gradient)
+            opponent_norm = self._l2_norm(opponent)
+            correction_active = ops.cast(correction_norm > self.eps, "float32")
+            values = (
+                (self.diagnostic_conflict_sum, conflict_ratio),
+                (self.diagnostic_correction_ratio_sum, correction_ratio),
+                (self.diagnostic_update_alignment_sum, update_alignment),
+                (self.diagnostic_opponent_norm_sum, opponent_norm),
+                (self.diagnostic_correction_active_sum, correction_active),
+                (self.diagnostic_effective_alpha_sum, ops.mean(effective_alpha)),
+                (self.diagnostic_gradient_noise_sum, current_noise),
+            )
+            for accumulator, value in values:
+                self.assign_add(accumulator, ops.cast(value, "float32"))
+            self.assign_add(self.diagnostic_count, ops.cast(1.0, "float32"))
+            return ops.cast(0, "int32")
+
+        ops.cond(should_record, record, lambda: ops.cast(0, "int32"))
+
     def update_step(self, gradient, variable, learning_rate) -> None:
         """Apply one Keras update while mirroring the reference step order."""
         learning_rate = ops.cast(learning_rate, variable.dtype)
@@ -361,11 +440,11 @@ class NEAT(keras.optimizers.Optimizer):
         step_count = ops.cast(self.iterations + 1, variable.dtype)
         # Second-moment state is updated before conflict correction so both
         # NCE and the final update can share the same preconditioner.
-        next_second_moment = (
-            ops.cast(self.second_moment_beta, variable.dtype) * second_moment
-            + ops.cast(1.0 - self.second_moment_beta, variable.dtype)
-            * ops.square(gradient)
-        )
+        next_second_moment = ops.cast(
+            self.second_moment_beta, variable.dtype
+        ) * second_moment + ops.cast(
+            1.0 - self.second_moment_beta, variable.dtype
+        ) * ops.square(gradient)
         if self.bias_correction:
             second_moment_hat = next_second_moment / self._bias_correction(
                 self.second_moment_beta,
@@ -385,10 +464,16 @@ class NEAT(keras.optimizers.Optimizer):
             momentum,
             previous_gradient,
             gradient_ema,
+            self.iterations,
         )
         nce_gradient = gradient
         nce_opponent = opponent
-        if self.adaptive_preconditioning and self.precondition_nce:
+        precondition_correction = (
+            self.adaptive_preconditioning
+            and self.precondition_nce
+            and self.correction_preconditioning_order == "legacy"
+        )
+        if precondition_correction:
             nce_gradient = gradient / preconditioner
             nce_opponent = opponent / preconditioner
         current_conflict = self._conflict_ratio(nce_gradient, nce_opponent)
@@ -401,8 +486,7 @@ class NEAT(keras.optimizers.Optimizer):
         current_noise = self._gradient_noise(gradient, gradient_ema)
         next_gradient_noise_ema = (
             ops.cast(self.gradient_noise_decay, variable.dtype) * gradient_noise_ema
-            + ops.cast(1.0 - self.gradient_noise_decay, variable.dtype)
-            * current_noise
+            + ops.cast(1.0 - self.gradient_noise_decay, variable.dtype) * current_noise
         )
         next_alignment_ema = (
             ops.cast(self.gradient_noise_decay, variable.dtype) * alignment_ema
@@ -426,7 +510,7 @@ class NEAT(keras.optimizers.Optimizer):
             effective_alpha,
         )
         raw_correction = correction
-        if self.adaptive_preconditioning and self.precondition_nce:
+        if precondition_correction:
             raw_correction = correction * preconditioner
         corrected_gradient = gradient + raw_correction
         # Transport the corrected gradient through the selected update family.
@@ -506,40 +590,15 @@ class NEAT(keras.optimizers.Optimizer):
             self.assign(variable, synced_variable)
             self.assign(slow_weight, synced_slow)
 
-        # Accumulate backend-native scalars; conversion to Python happens only
-        # when diagnostic_snapshot() is explicitly requested.
-        correction_norm = self._l2_norm(raw_correction)
-        grad_norm = self._l2_norm(gradient)
-        correction_ratio = correction_norm / (grad_norm + self.eps)
-        update_alignment = self._cosine_similarity(gradient, corrected_gradient)
-        opponent_norm = self._l2_norm(opponent)
-        correction_active = ops.cast(correction_norm > self.eps, "float32")
-        self.assign_add(
-            self.diagnostic_conflict_sum,
-            ops.cast(conflict_ratio, "float32"),
+        self._record_diagnostics(
+            gradient,
+            opponent,
+            raw_correction,
+            corrected_gradient,
+            conflict_ratio,
+            effective_alpha,
+            current_noise,
         )
-        self.assign_add(
-            self.diagnostic_correction_ratio_sum,
-            ops.cast(correction_ratio, "float32"),
-        )
-        self.assign_add(
-            self.diagnostic_update_alignment_sum,
-            ops.cast(update_alignment, "float32"),
-        )
-        self.assign_add(
-            self.diagnostic_opponent_norm_sum,
-            ops.cast(opponent_norm, "float32"),
-        )
-        self.assign_add(self.diagnostic_correction_active_sum, correction_active)
-        self.assign_add(
-            self.diagnostic_effective_alpha_sum,
-            ops.cast(ops.mean(effective_alpha), "float32"),
-        )
-        self.assign_add(
-            self.diagnostic_gradient_noise_sum,
-            ops.cast(current_noise, "float32"),
-        )
-        self.assign_add(self.diagnostic_count, ops.cast(1.0, "float32"))
 
     def reset_diagnostics(self) -> None:
         """Reset all diagnostic accumulators without touching model state."""
@@ -597,6 +656,7 @@ class NEAT(keras.optimizers.Optimizer):
         config = super().get_config()
         config.update(
             {
+                "spec_version": self.spec_version,
                 "alpha": self.alpha,
                 "beta": self.beta,
                 "nce_mode": self.nce_mode,
@@ -628,6 +688,20 @@ class NEAT(keras.optimizers.Optimizer):
                 "nesterov": self.nesterov,
                 "lookahead_k": self.lookahead_k,
                 "lookahead_alpha": self.lookahead_alpha,
+                "conflict_granularity": self.conflict_granularity,
+                "trust_region_ratio": self.trust_region_ratio,
+                "opponent_ensemble": self.opponent_ensemble,
+                "opponent_ensemble_momentum_weight": (
+                    self.opponent_ensemble_momentum_weight
+                ),
+                "opponent_ensemble_schedule_steps": (
+                    self.opponent_ensemble_schedule_steps
+                ),
+                "correction_preconditioning_order": (
+                    self.correction_preconditioning_order
+                ),
+                "deterministic": self.deterministic,
+                "diagnostic_interval": self.diagnostic_interval,
             }
         )
         return config

@@ -16,6 +16,9 @@ VALID_OPPONENT_SOURCES = {
     "gradient_ema",
     "blended",
 }
+VALID_SPEC_VERSIONS = {"nce_spec_v2", "nce_spec_v3"}
+VALID_CONFLICT_GRANULARITIES = {"global", "per_parameter"}
+VALID_PRECONDITIONING_ORDERS = {"legacy", "correction_then_precondition"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +31,7 @@ class NEATConfig:
     """
 
     # Core momentum and Nash-conflict correction controls.
+    spec_version: str = "nce_spec_v2"
     learning_rate: float = 1e-3
     alpha: float = 0.25
     beta: float = 0.9
@@ -66,10 +70,28 @@ class NEATConfig:
     nesterov: bool = False
     lookahead_k: int = 0
     lookahead_alpha: float = 0.5
+    # v3 research options. All remain inert under their defaults.
+    # AUTHOR-DECISION: select paper conflict granularity.
+    conflict_granularity: str = "global"
+    # AUTHOR-DECISION: select whether the trust-region bound is evaluated.
+    trust_region_ratio: float = 0.0
+    # AUTHOR-DECISION: select the opponent-ensemble schedule.
+    opponent_ensemble: bool = False
+    opponent_ensemble_momentum_weight: float = 0.5
+    opponent_ensemble_schedule_steps: int = 0
+    # AUTHOR-DECISION: select the correction/preconditioner composition order.
+    correction_preconditioning_order: str = "legacy"
+    # AUTHOR-DECISION: select whether deterministic mode is used in experiments.
+    deterministic: bool = False
+    native_fused: bool = False
     native: str = "auto"
 
     def __post_init__(self) -> None:
         """Validate configuration values eagerly."""
+        if self.spec_version not in VALID_SPEC_VERSIONS:
+            raise ConfigurationError(
+                f"spec_version must be one of {sorted(VALID_SPEC_VERSIONS)}"
+            )
         if self.learning_rate <= 0:
             raise ConfigurationError("learning_rate must be positive")
         if self.alpha < 0.0:
@@ -105,9 +127,7 @@ class NEATConfig:
         if not 0.0 <= self.adaptive_correction_decay < 1.0:
             raise ConfigurationError("adaptive_correction_decay must be in [0, 1)")
         if self.adaptive_correction_min_scale <= 0.0:
-            raise ConfigurationError(
-                "adaptive_correction_min_scale must be positive"
-            )
+            raise ConfigurationError("adaptive_correction_min_scale must be positive")
         if self.adaptive_correction_max_scale < self.adaptive_correction_min_scale:
             raise ConfigurationError(
                 "adaptive_correction_max_scale must be >= adaptive_correction_min_scale"
@@ -121,15 +141,44 @@ class NEATConfig:
         if self.adaptive_alpha_min < 0.0:
             raise ConfigurationError("adaptive_alpha_min must be non-negative")
         if self.adaptive_alpha_max < self.adaptive_alpha_min:
-            raise ConfigurationError(
-                "adaptive_alpha_max must be >= adaptive_alpha_min"
-            )
+            raise ConfigurationError("adaptive_alpha_max must be >= adaptive_alpha_min")
         if not 0.0 <= self.gradient_noise_decay < 1.0:
             raise ConfigurationError("gradient_noise_decay must be in [0, 1)")
         if self.lookahead_k < 0:
             raise ConfigurationError("lookahead_k must be non-negative")
         if not 0.0 < self.lookahead_alpha <= 1.0:
             raise ConfigurationError("lookahead_alpha must be in (0, 1]")
+        if self.conflict_granularity not in VALID_CONFLICT_GRANULARITIES:
+            raise ConfigurationError(
+                "conflict_granularity must be one of "
+                f"{sorted(VALID_CONFLICT_GRANULARITIES)}"
+            )
+        if self.trust_region_ratio < 0.0:
+            raise ConfigurationError("trust_region_ratio must be non-negative")
+        if not 0.0 <= self.opponent_ensemble_momentum_weight <= 1.0:
+            raise ConfigurationError(
+                "opponent_ensemble_momentum_weight must be in [0, 1]"
+            )
+        if self.opponent_ensemble_schedule_steps < 0:
+            raise ConfigurationError(
+                "opponent_ensemble_schedule_steps must be non-negative"
+            )
+        if self.correction_preconditioning_order not in VALID_PRECONDITIONING_ORDERS:
+            raise ConfigurationError(
+                "correction_preconditioning_order must be one of "
+                f"{sorted(VALID_PRECONDITIONING_ORDERS)}"
+            )
+        v3_requested = (
+            self.conflict_granularity != "global"
+            or self.trust_region_ratio > 0.0
+            or self.opponent_ensemble
+            or self.correction_preconditioning_order != "legacy"
+            or self.deterministic
+        )
+        if self.spec_version == "nce_spec_v2" and v3_requested:
+            raise ConfigurationError(
+                "v3 research options require spec_version='nce_spec_v3'"
+            )
         if self.native not in {"auto", "never", "force"}:
             raise ConfigurationError("native must be one of 'auto', 'never', 'force'")
 
