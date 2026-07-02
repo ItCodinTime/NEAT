@@ -79,4 +79,8 @@ PYBIND11_MODULE(_neat_core, m) {
       py::arg("nce_clip_ratio"),
       py::arg("nce_mode"),
       py::arg("decouple_weight_decay"));
+  // The native kernel already fuses correction, momentum, decay, and apply.
+  // This named alias lets benchmarks select the fused path explicitly while
+  // preserving the original public binding.
+  m.attr("cpu_fused_step_inplace") = m.attr("cpu_step_inplace");
 }

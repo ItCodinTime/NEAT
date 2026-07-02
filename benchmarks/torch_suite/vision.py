@@ -8,9 +8,12 @@ import time
 import numpy as np
 
 from benchmarks.torch_suite.common import (
+    STANDARD_OPTIMIZERS,
     EpochMetrics,
     ExperimentLogger,
+    add_seed_arguments,
     build_optimizer,
+    orchestrate_seeds,
     require_torch,
     run_name,
     seed_everything,
@@ -32,13 +35,13 @@ def parse_args(argv=None):
         choices=("resnet18", "resnet34", "vit_small", "deit_small"),
         default="resnet18",
     )
-    parser.add_argument("--optimizer", choices=("neat", "adamw", "sgd"), default="neat")
+    parser.add_argument("--optimizer", choices=STANDARD_OPTIMIZERS, default="neat")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=5e-4)
     parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--seed", type=int, default=7)
+    add_seed_arguments(parser)
     parser.add_argument("--target-accuracy", type=float, default=None)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--output-dir", default="benchmark-runs")
@@ -55,14 +58,22 @@ def make_data(args):
         raise SystemExit("Install torchvision to run vision benchmarks.") from exc
     image_size = 224 if args.dataset == "imagefolder" else 32
     normalize = transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(image_size, scale=(0.7, 1.0)),
-        transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize,
-    ])
-    eval_transform = transforms.Compose([
-        transforms.Resize(image_size), transforms.CenterCrop(image_size),
-        transforms.ToTensor(), normalize,
-    ])
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomResizedCrop(image_size, scale=(0.7, 1.0)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
+    eval_transform = transforms.Compose(
+        [
+            transforms.Resize(image_size),
+            transforms.CenterCrop(image_size),
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
     # CIFAR is downloaded through torchvision. ImageNet-style experiments use
     # ImageFolder so licensed datasets never need repository-specific code.
     if args.dataset.startswith("cifar"):
@@ -128,6 +139,8 @@ def evaluate(model, loader, device) -> float:
 def main(argv=None):
     """Run one optimizer/seed trial and persist its full metric history."""
     args = parse_args(argv)
+    if orchestrate_seeds("benchmarks.torch_suite.vision", args, argv):
+        return
     torch = require_torch()
     seed_everything(args.seed)
     device = select_device(args.device)

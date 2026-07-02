@@ -1,5 +1,9 @@
 # NEAT
 
+> **Name note:** NEAT in this repository means Nash-Equilibrium Adaptive
+> Training. It is unrelated to NeuroEvolution of Augmenting Topologies (NEAT;
+> Stanley and Miikkulainen, 2002).
+
 NEAT, short for Nash-Equilibrium Adaptive Training, is a Keras-first optimizer
 library for conflict-aware neural network optimization. It keeps the optimizer
 math explicit and testable in a NumPy reference engine, while exposing a small
@@ -57,6 +61,17 @@ The standard optimizer now also exposes research knobs for:
 - Optional PyTorch adapter: `neat_optim.TorchNEAT`, used by the modern
   reproducible benchmark suite.
 
+The v3 engineering work is additive. `nce_spec_v2` remains the default and its
+behavior is frozen; v3 research options are not promoted without an explicit
+author decision and full cross-engine parity coverage.
+
+To select the additive specification, pass `spec_version="nce_spec_v3"`.
+Default-off v3 controls cover parameter-local conflict granularity, an L2
+trust-region correction bound, scheduled momentum/gradient-EMA opponent
+ensembles, correction/preconditioner composition order, and deterministic
+reference reductions. Existing constructors that omit `spec_version` continue
+to use v2 behavior.
+
 For large PyTorch models, `TorchNEAT(..., diagnostic_interval=10)` samples
 diagnostics every ten steps. This reduces accelerator synchronization cost and
 does not alter optimizer updates.
@@ -68,6 +83,9 @@ folders with ResNet/ViT/DeiT, GLUE SST-2 and Alpaca small-LLM fine-tuning,
 MuJoCo control, MNIST diffusion, and large-batch stability. Each run records
 convergence, loss variance, wall time, environment metadata, and optimizer
 diagnostics. See [the benchmark guide](benchmarks/torch_suite/README.md).
+The dataset-free `python -m benchmarks.torch_suite.compare_all --quick` gate
+runs five seeds across NEAT, AdamW, SGD momentum, Lion, PCGrad, and CAGrad in
+their applicable synthetic settings.
 
 ## Why This Repository Exists
 

@@ -17,6 +17,21 @@ def flat_dot(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.dot(left.reshape(-1), right.reshape(-1)))
 
 
+def ordered_dot(left: np.ndarray, right: np.ndarray) -> float:
+    """Compute a float32 dot product in an explicit, reproducible order."""
+    left_flat = as_float32(left).reshape(-1)
+    right_flat = as_float32(right).reshape(-1)
+    total = np.float32(0.0)
+    for index in range(left_flat.size):
+        total = np.float32(total + np.float32(left_flat[index] * right_flat[index]))
+    return float(total)
+
+
+def deterministic_norm(value: np.ndarray) -> float:
+    """Compute an L2 norm using the ordered reduction path."""
+    return float(np.sqrt(max(ordered_dot(value, value), 0.0)))
+
+
 def safe_ratio(numerator: float, denominator: float, eps: float) -> float:
     """Return a numerically safe ratio."""
     return float(numerator / (denominator + eps))

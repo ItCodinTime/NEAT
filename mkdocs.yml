@@ -7,12 +7,20 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - API: api.md
+  - v3 Spec: v3_spec.md
+  - Tuning Protocol: tuning_protocol.md
+  - Statistics: statistics.md
+  - Reproduction: reproduction.md
+  - Related Work: related_work.md
+  - v3 Decisions: v3_decisions.md
+  - AI Assistance Log: ai_assistance_log.md
   - Research:
       - Math Spec: research/math-spec.md
       - Algorithm: research/algorithm.md
       - Player-Aware Mode: research/player-aware.md
       - Benchmarks: research/benchmarks.md
       - Benchmark Plan: research/benchmark-plan.md
+      - CIFAR-10 ResNet-18 MPS Study: research/cifar10-resnet18-mps-2026-06-29.md
   - Contributing:
       - Development: contributing/development.md
       - Architecture: contributing/architecture.md

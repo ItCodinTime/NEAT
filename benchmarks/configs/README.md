@@ -1,5 +1,9 @@
 # Benchmark Configs
 
+`v3_synthetic_engineering_smoke.json` exists only for fast machinery checks.
+It is not a paper configuration and does not resolve any checkbox in
+`docs/v3_decisions.md`.
+
 This directory is reserved for reproducible benchmark presets and generated
 run manifests.
 

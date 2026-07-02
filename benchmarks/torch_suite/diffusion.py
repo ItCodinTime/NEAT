@@ -8,9 +8,12 @@ import time
 import numpy as np
 
 from benchmarks.torch_suite.common import (
+    STANDARD_OPTIMIZERS,
     EpochMetrics,
     ExperimentLogger,
+    add_seed_arguments,
     build_optimizer,
+    orchestrate_seeds,
     require_torch,
     run_name,
     seed_everything,
@@ -21,7 +24,7 @@ from benchmarks.torch_suite.common import (
 def parse_args(argv=None):
     """Parse one compact DDPM training trial."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--optimizer", choices=("neat", "adamw"), default="neat")
+    parser.add_argument("--optimizer", choices=STANDARD_OPTIMIZERS, default="neat")
     parser.add_argument("--data-dir", default="./data")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -29,7 +32,7 @@ def parse_args(argv=None):
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--diffusion-steps", type=int, default=1000)
     parser.add_argument("--target-loss", type=float, default=None)
-    parser.add_argument("--seed", type=int, default=7)
+    add_seed_arguments(parser)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--output-dir", default="benchmark-runs")
@@ -94,6 +97,8 @@ def evaluate(model, scheduler, loader, device) -> float:
 def main(argv=None):
     """Train one unconditional MNIST DDPM and log optimizer behavior."""
     args = parse_args(argv)
+    if orchestrate_seeds("benchmarks.torch_suite.diffusion", args, argv):
+        return
     torch = require_torch()
     try:
         from diffusers import DDPMScheduler, UNet2DModel

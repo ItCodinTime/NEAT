@@ -6,6 +6,12 @@ import argparse
 import subprocess
 import sys
 
+from benchmarks.torch_suite.common import (
+    STANDARD_OPTIMIZERS,
+    add_seed_arguments,
+    orchestrate_seeds,
+)
+
 
 def parse_args(argv=None):
     """Parse the batch sizes and fixed vision configuration to sweep."""
@@ -14,8 +20,8 @@ def parse_args(argv=None):
     parser.add_argument(
         "--optimizers",
         nargs="+",
-        choices=("neat", "adamw"),
-        default=("neat", "adamw"),
+        choices=STANDARD_OPTIMIZERS,
+        default=STANDARD_OPTIMIZERS,
     )
     parser.add_argument(
         "--dataset", choices=("cifar10", "cifar100"), default="cifar100"
@@ -27,7 +33,7 @@ def parse_args(argv=None):
     )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--base-lr", type=float, default=3e-4)
-    parser.add_argument("--seed", type=int, default=7)
+    add_seed_arguments(parser)
     parser.add_argument("--output-dir", default="benchmark-runs/large-batch")
     parser.add_argument("--data-dir", default="./data")
     parser.add_argument("--device", default="auto")
@@ -38,6 +44,8 @@ def parse_args(argv=None):
 def main(argv=None):
     """Launch matched optimizer trials for every requested batch size."""
     args = parse_args(argv)
+    if orchestrate_seeds("benchmarks.torch_suite.large_batch", args, argv):
+        return
     for batch_size in args.batch_sizes:
         # Linear scaling makes the batch-size comparison explicit and reproducible.
         learning_rate = args.base_lr * batch_size / min(args.batch_sizes)

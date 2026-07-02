@@ -39,31 +39,39 @@ def main(argv=None):
     if not results:
         raise SystemExit("No result.json manifests found.")
     fields = [
-        "run", "task", "optimizer", "seed", "final_metric", "best_metric",
-        "epochs_to_target", "final_loss", "mean_loss_variance", "wall_time_seconds",
+        "run",
+        "task",
+        "optimizer",
+        "seed",
+        "final_metric",
+        "best_metric",
+        "epochs_to_target",
+        "final_loss",
+        "mean_loss_variance",
+        "wall_time_seconds",
     ]
     rows = []
     for path, result in results:
         config, history = result["config"], result["history"]
         higher = result.get("metric") not in {"perplexity", "validation_noise_mse"}
         metrics = [row["eval_metric"] for row in history]
-        rows.append({
-            "run": str(path.parent),
-            "task": config.get(
-                "task", config.get("dataset", config.get("env", "unknown"))
-            ),
-            "optimizer": config["optimizer"],
-            "seed": config["seed"],
-            "final_metric": metrics[-1],
-            "best_metric": (max(metrics) if higher else min(metrics)),
-            "epochs_to_target": result.get("epochs_to_target"),
-            "final_loss": history[-1]["train_loss"],
-            "mean_loss_variance": sum(
-                row["loss_variance"] for row in history
-            )
-            / len(history),
-            "wall_time_seconds": result["wall_time_seconds"],
-        })
+        rows.append(
+            {
+                "run": str(path.parent),
+                "task": config.get(
+                    "task", config.get("dataset", config.get("env", "unknown"))
+                ),
+                "optimizer": config["optimizer"],
+                "seed": config["seed"],
+                "final_metric": metrics[-1],
+                "best_metric": (max(metrics) if higher else min(metrics)),
+                "epochs_to_target": result.get("epochs_to_target"),
+                "final_loss": history[-1]["train_loss"],
+                "mean_loss_variance": sum(row["loss_variance"] for row in history)
+                / len(history),
+                "wall_time_seconds": result["wall_time_seconds"],
+            }
+        )
     with (output / "summary.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
@@ -74,7 +82,7 @@ def main(argv=None):
         print(f"Wrote {output / 'summary.csv'} (install matplotlib for plots)")
         return
     figure, (metric_axis, loss_axis) = plt.subplots(1, 2, figsize=(12, 4))
-    for path, result in results:
+    for _path, result in results:
         history, config = result["history"], result["config"]
         label = f"{config['optimizer']}/seed{config['seed']}"
         epochs = [row["epoch"] for row in history]

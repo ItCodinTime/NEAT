@@ -58,3 +58,22 @@ def test_native_matches_reference_when_available() -> None:
     assert native_result.metrics.conflict_ratio == pytest.approx(
         reference_result.metrics.conflict_ratio, abs=1e-6
     )
+
+
+def test_named_fused_native_path_matches_reference_when_available() -> None:
+    try:
+        native = load_native_core()
+    except NativeCoreUnavailableError:
+        pytest.skip("native core not installed")
+    assert hasattr(native, "cpu_fused_step_inplace")
+    parameter = np.array([0.2, -0.4, 0.8], dtype=np.float32)
+    gradient = np.array([-0.3, 0.1, 0.5], dtype=np.float32)
+    state = ArrayState.zeros_like(parameter)
+    state.momentum[:] = np.array([0.1, -0.2, 0.3], dtype=np.float32)
+    expected_state = ArrayState.zeros_like(parameter)
+    expected_state.momentum[:] = state.momentum
+    config = NEATConfig(native="force", native_fused=True)
+    actual = neat_step(parameter.copy(), gradient, state, config)
+    expected = neat_step_reference(parameter.copy(), gradient, expected_state, config)
+    np.testing.assert_allclose(actual.param, expected.param, atol=1e-6)
+    np.testing.assert_allclose(actual.state.nce, expected.state.nce, atol=1e-6)

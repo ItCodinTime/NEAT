@@ -7,8 +7,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from neat_optim import ArrayState, NEATConfig, TorchNEAT
-from neat_optim.engine.reference import neat_step_reference
+from neat_optim import ArrayState, NEATConfig, TorchNEAT  # noqa: E402
+from neat_optim.engine.reference import neat_step_reference  # noqa: E402
 
 
 def _run_reference_and_torch(
@@ -23,14 +23,10 @@ def _run_reference_and_torch(
     kwargs = asdict(config)
     kwargs.pop("learning_rate")
     kwargs.pop("native")
-    optimizer = TorchNEAT(
-        [parameter], learning_rate=config.learning_rate, **kwargs
-    )
+    optimizer = TorchNEAT([parameter], learning_rate=config.learning_rate, **kwargs)
 
     for gradient in gradients:
-        result = neat_step_reference(
-            reference_param, gradient, reference_state, config
-        )
+        result = neat_step_reference(reference_param, gradient, reference_state, config)
         reference_param, reference_state = result.param, result.state
         parameter.grad = torch.from_numpy(gradient.copy())
         optimizer.step()
@@ -120,6 +116,16 @@ def test_torch_neat_rejects_invalid_diagnostic_interval() -> None:
             "sparsity_l1": 0.01,
             "prune_threshold": 0.02,
         },
+        {
+            "spec_version": "nce_spec_v3",
+            "trust_region_ratio": 0.1,
+            "opponent_ensemble": True,
+            "opponent_ensemble_schedule_steps": 3,
+            "adaptive_preconditioning": True,
+            "correction_preconditioning_order": "correction_then_precondition",
+            "deterministic": True,
+            "conflict_granularity": "per_parameter",
+        },
     ],
 )
 def test_torch_neat_matches_reference_advanced_modes(
@@ -140,9 +146,7 @@ def test_torch_neat_matches_reference_advanced_modes(
         native="never",
         **overrides,
     )
-    reference_state, torch_state = _run_reference_and_torch(
-        initial, gradients, config
-    )
+    reference_state, torch_state = _run_reference_and_torch(initial, gradients, config)
 
     for name in (
         "momentum",

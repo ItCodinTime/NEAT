@@ -13,7 +13,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: pypa/cibuildwheel@v2.21.3
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"

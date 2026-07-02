@@ -2,7 +2,7 @@
 
 Usage
 -----
-    # Quick smoke-test (~5 min, minimal epochs)
+    # Quick dataset-free smoke-test (all baseline families, five seeds)
     python -m benchmarks.torch_suite.compare_all --quick
 
     # Single category
@@ -19,13 +19,16 @@ CSV and convergence PNG are generated via the report module.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+from benchmarks.manifest import reproducibility_metadata, write_json
 
-OPTIMIZERS = ("neat", "adamw")
+OPTIMIZERS = ("neat", "adamw", "sgd", "lion")
+TASK_GRADIENT_OPTIMIZERS = ("neat", "pcgrad", "cagrad", "sgd")
 
 
 def _run(cmd: list[str]) -> None:
@@ -59,25 +62,38 @@ def run_vision(
     for seed in seeds:
         for optimizer in OPTIMIZERS:
             cmd = [
-                _python(), "-m", "benchmarks.torch_suite.vision",
-                "--dataset", dataset,
-                "--model", model,
-                "--optimizer", optimizer,
-                "--epochs", str(epochs),
-                "--batch-size", str(batch_size),
-                "--lr", str(lr),
-                "--weight-decay", str(weight_decay),
-                "--seed", str(seed),
-                "--output-dir", subdir,
-                "--device", device,
-                "--data-dir", data_dir,
+                _python(),
+                "-m",
+                "benchmarks.torch_suite.vision",
+                "--dataset",
+                dataset,
+                "--model",
+                model,
+                "--optimizer",
+                optimizer,
+                "--epochs",
+                str(epochs),
+                "--batch-size",
+                str(batch_size),
+                "--lr",
+                str(lr),
+                "--weight-decay",
+                str(weight_decay),
+                "--seed",
+                str(seed),
+                "--output-dir",
+                subdir,
+                "--device",
+                device,
+                "--data-dir",
+                data_dir,
             ]
             if target_accuracy is not None:
                 cmd += ["--target-accuracy", str(target_accuracy)]
             if amp:
                 cmd.append("--amp")
             _run(cmd)
-    _report(subdir)
+    _report(subdir, seeds)
 
 
 def run_language_model(
@@ -100,16 +116,27 @@ def run_language_model(
     for seed in seeds:
         for optimizer in OPTIMIZERS:
             cmd = [
-                _python(), "-m", "benchmarks.torch_suite.language_model",
-                "--task", task,
-                "--model", model,
-                "--optimizer", optimizer,
-                "--epochs", str(epochs),
-                "--batch-size", str(batch_size),
-                "--lr", str(lr),
-                "--seed", str(seed),
-                "--output-dir", subdir,
-                "--device", device,
+                _python(),
+                "-m",
+                "benchmarks.torch_suite.language_model",
+                "--task",
+                task,
+                "--model",
+                model,
+                "--optimizer",
+                optimizer,
+                "--epochs",
+                str(epochs),
+                "--batch-size",
+                str(batch_size),
+                "--lr",
+                str(lr),
+                "--seed",
+                str(seed),
+                "--output-dir",
+                subdir,
+                "--device",
+                device,
             ]
             if lora:
                 cmd.append("--lora")
@@ -120,7 +147,7 @@ def run_language_model(
             if amp:
                 cmd.append("--amp")
             _run(cmd)
-    _report(subdir)
+    _report(subdir, seeds)
 
 
 def run_reinforcement_learning(
@@ -137,18 +164,26 @@ def run_reinforcement_learning(
     for seed in seeds:
         for optimizer in OPTIMIZERS:
             cmd = [
-                _python(), "-m", "benchmarks.torch_suite.reinforcement_learning",
-                "--env", env,
-                "--optimizer", optimizer,
-                "--timesteps", str(timesteps),
-                "--seed", str(seed),
-                "--output-dir", subdir,
-                "--device", device,
+                _python(),
+                "-m",
+                "benchmarks.torch_suite.reinforcement_learning",
+                "--env",
+                env,
+                "--optimizer",
+                optimizer,
+                "--timesteps",
+                str(timesteps),
+                "--seed",
+                str(seed),
+                "--output-dir",
+                subdir,
+                "--device",
+                device,
             ]
             if target_reward is not None:
                 cmd += ["--target-reward", str(target_reward)]
             _run(cmd)
-    _report(subdir)
+    _report(subdir, seeds)
 
 
 def run_diffusion(
@@ -168,22 +203,32 @@ def run_diffusion(
     for seed in seeds:
         for optimizer in OPTIMIZERS:
             cmd = [
-                _python(), "-m", "benchmarks.torch_suite.diffusion",
-                "--optimizer", optimizer,
-                "--epochs", str(epochs),
-                "--batch-size", str(batch_size),
-                "--lr", str(lr),
-                "--seed", str(seed),
-                "--output-dir", subdir,
-                "--device", device,
-                "--data-dir", data_dir,
+                _python(),
+                "-m",
+                "benchmarks.torch_suite.diffusion",
+                "--optimizer",
+                optimizer,
+                "--epochs",
+                str(epochs),
+                "--batch-size",
+                str(batch_size),
+                "--lr",
+                str(lr),
+                "--seed",
+                str(seed),
+                "--output-dir",
+                subdir,
+                "--device",
+                device,
+                "--data-dir",
+                data_dir,
             ]
             if target_loss is not None:
                 cmd += ["--target-loss", str(target_loss)]
             if amp:
                 cmd.append("--amp")
             _run(cmd)
-    _report(subdir)
+    _report(subdir, seeds)
 
 
 def run_large_batch(
@@ -194,37 +239,132 @@ def run_large_batch(
     batch_sizes: list[int],
     base_lr: float,
     epochs: int,
+    seeds: list[int],
     device: str,
     amp: bool,
     data_dir: str,
 ) -> None:
     """Delegate the batch-size matrix to the dedicated sweep runner."""
     subdir = f"{output_dir}/large-batch-{dataset}-{model}"
-    cmd = [
-        _python(), "-m", "benchmarks.torch_suite.large_batch",
-        "--dataset", dataset,
-        "--model", model,
-        "--batch-sizes", *[str(b) for b in batch_sizes],
-        "--base-lr", str(base_lr),
-        "--epochs", str(epochs),
-        "--output-dir", subdir,
-        "--device", device,
-        "--data-dir", data_dir,
-    ]
-    if amp:
-        cmd.append("--amp")
-    _run(cmd)
-    _report(subdir)
+    for seed in seeds:
+        cmd = [
+            _python(),
+            "-m",
+            "benchmarks.torch_suite.large_batch",
+            "--dataset",
+            dataset,
+            "--model",
+            model,
+            "--batch-sizes",
+            *[str(b) for b in batch_sizes],
+            "--base-lr",
+            str(base_lr),
+            "--epochs",
+            str(epochs),
+            "--seed",
+            str(seed),
+            "--output-dir",
+            subdir,
+            "--device",
+            device,
+            "--data-dir",
+            data_dir,
+        ]
+        if amp:
+            cmd.append("--amp")
+        _run(cmd)
+    _report(subdir, seeds)
 
 
-def _report(subdir: str) -> None:
+def run_multitask_synthetic(*, output_dir: str, seeds: list[int], steps: int) -> None:
+    """Run baselines requiring explicit task gradients on an applicable task."""
+    subdir = f"{output_dir}/multitask-synthetic"
+    for seed in seeds:
+        for optimizer in TASK_GRADIENT_OPTIMIZERS:
+            _run(
+                [
+                    _python(),
+                    "-m",
+                    "benchmarks.torch_suite.multitask_synthetic",
+                    "--optimizer",
+                    optimizer,
+                    "--steps",
+                    str(steps),
+                    "--seed",
+                    str(seed),
+                    "--output-dir",
+                    subdir,
+                ]
+            )
+    write_json(
+        Path(subdir) / "comparison_manifest.json",
+        {
+            "schema_version": 3,
+            "suite": "multitask_synthetic",
+            "seeds": seeds,
+            "optimizers": list(TASK_GRADIENT_OPTIMIZERS),
+            "results": [
+                str(path.relative_to(subdir))
+                for path in Path(subdir).rglob("result.json")
+            ],
+        },
+    )
+    _report(subdir, seeds, TASK_GRADIENT_OPTIMIZERS)
+
+
+def run_optimizer_smoke(*, output_dir: str, seeds: list[int], steps: int) -> None:
+    """Run every standard optimizer without external datasets."""
+    subdir = f"{output_dir}/optimizer-smoke"
+    for seed in seeds:
+        for optimizer in OPTIMIZERS:
+            _run(
+                [
+                    _python(),
+                    "-m",
+                    "benchmarks.torch_suite.optimizer_smoke",
+                    "--optimizer",
+                    optimizer,
+                    "--steps",
+                    str(steps),
+                    "--seed",
+                    str(seed),
+                    "--output-dir",
+                    subdir,
+                ]
+            )
+    _report(subdir, seeds)
+
+
+def _report(
+    subdir: str,
+    seeds: list[int],
+    optimizers: tuple[str, ...] = OPTIMIZERS,
+) -> None:
     """Generate summary artifacts while preserving raw runs on failure."""
+    plan = Path(subdir) / "comparison_manifest.json"
+    write_json(
+        plan,
+        {
+            "schema_version": 3,
+            "suite": Path(subdir).name,
+            "seeds": seeds,
+            "optimizers": list(optimizers),
+            "results": [
+                str(path.relative_to(subdir))
+                for path in Path(subdir).rglob("result.json")
+            ],
+        },
+    )
     report_dir = str(Path(subdir) / "report")
     try:
         subprocess.run(
             [
-                _python(), "-m", "benchmarks.torch_suite.report",
-                subdir, "--output-dir", report_dir,
+                _python(),
+                "-m",
+                "benchmarks.report",
+                subdir,
+                "--output-dir",
+                report_dir,
             ],
             check=True,
         )
@@ -238,15 +378,27 @@ def parse_args(argv=None):
     parser.add_argument(
         "--category",
         choices=(
-            "vision", "vision-vit", "language-model", "rl", "diffusion",
-            "large-batch", "all",
+            "vision",
+            "vision-vit",
+            "language-model",
+            "rl",
+            "diffusion",
+            "large-batch",
+            "multitask",
+            "optimizer-smoke",
+            "all",
         ),
         default="all",
     )
     parser.add_argument(
         "--quick", action="store_true", help="Minimal epochs for smoke-testing"
     )
-    parser.add_argument("--seeds", type=int, nargs="+", default=[7, 11, 19])
+    parser.add_argument("--seeds", type=int, nargs="+", default=[7, 11, 19, 23, 29])
+    parser.add_argument(
+        "--allow-single-seed",
+        action="store_true",
+        help="Permit a preliminary run that cannot be used for paper statistics",
+    )
     parser.add_argument("--output-dir", default="benchmark-runs/compare-all")
     parser.add_argument("--data-dir", default="./data")
     parser.add_argument("--device", default="auto")
@@ -257,10 +409,33 @@ def parse_args(argv=None):
 def main(argv=None):
     """Dispatch selected benchmark categories with credible default budgets."""
     args = parse_args(argv)
+    if len(set(args.seeds)) != len(args.seeds):
+        raise SystemExit("--seeds must not contain duplicates")
+    if len(args.seeds) == 1 and not args.allow_single_seed:
+        raise SystemExit("single-seed runs require --allow-single-seed")
+    os.environ["NEAT_BENCHMARK_ORCHESTRATED"] = "1"
+    if len(args.seeds) == 1:
+        os.environ["NEAT_BENCHMARK_PRELIMINARY"] = "1"
     started = time.time()
 
+    if args.category in ("optimizer-smoke", "all"):
+        run_optimizer_smoke(
+            output_dir=args.output_dir,
+            seeds=args.seeds,
+            steps=10 if args.quick else 100,
+        )
+
+    run_heavyweight = args.category != "all" or not args.quick
+
+    if args.category in ("multitask", "all"):
+        run_multitask_synthetic(
+            output_dir=args.output_dir,
+            seeds=args.seeds,
+            steps=10 if args.quick else 100,
+        )
+
     # -- Vision (CIFAR-10, ResNet-18) -----------------------------------------
-    if args.category in ("vision", "all"):
+    if args.category == "vision" or (args.category == "all" and run_heavyweight):
         run_vision(
             output_dir=args.output_dir,
             dataset="cifar10",
@@ -269,7 +444,7 @@ def main(argv=None):
             batch_size=128,
             lr=1e-3,
             weight_decay=5e-4,
-            seeds=[args.seeds[0]] if args.quick else args.seeds,
+            seeds=args.seeds,
             target_accuracy=0.92 if not args.quick else None,
             device=args.device,
             amp=args.amp,
@@ -293,7 +468,7 @@ def main(argv=None):
             )
 
     # -- Vision Transformer (ViT-small, CIFAR-100) ----------------------------
-    if args.category in ("vision-vit", "all"):
+    if args.category == "vision-vit" or (args.category == "all" and run_heavyweight):
         run_vision(
             output_dir=args.output_dir,
             dataset="cifar100",
@@ -302,7 +477,7 @@ def main(argv=None):
             batch_size=128,
             lr=5e-4,
             weight_decay=0.05,
-            seeds=[args.seeds[0]] if args.quick else args.seeds,
+            seeds=args.seeds,
             target_accuracy=0.70 if not args.quick else None,
             device=args.device,
             amp=args.amp,
@@ -310,7 +485,9 @@ def main(argv=None):
         )
 
     # -- Language Model (TinyLlama SST-2) -------------------------------------
-    if args.category in ("language-model", "all"):
+    if args.category == "language-model" or (
+        args.category == "all" and run_heavyweight
+    ):
         run_language_model(
             output_dir=args.output_dir,
             task="sst2",
@@ -321,30 +498,30 @@ def main(argv=None):
             lora=True,
             max_train_samples=200 if args.quick else None,
             max_eval_samples=100 if args.quick else None,
-            seeds=[args.seeds[0]] if args.quick else args.seeds,
+            seeds=args.seeds,
             device=args.device,
             amp=args.amp,
         )
 
     # -- Reinforcement Learning (HalfCheetah) ---------------------------------
-    if args.category in ("rl", "all"):
+    if args.category == "rl" or (args.category == "all" and run_heavyweight):
         run_reinforcement_learning(
             output_dir=args.output_dir,
             env="HalfCheetah-v5",
             timesteps=5_000 if args.quick else 1_000_000,
-            seeds=[args.seeds[0]] if args.quick else args.seeds,
+            seeds=args.seeds,
             device=args.device,
             target_reward=None if args.quick else 8000,
         )
 
     # -- Diffusion (MNIST) ----------------------------------------------------
-    if args.category in ("diffusion", "all"):
+    if args.category == "diffusion" or (args.category == "all" and run_heavyweight):
         run_diffusion(
             output_dir=args.output_dir,
             epochs=1 if args.quick else 50,
             batch_size=128,
             lr=1e-4,
-            seeds=[args.seeds[0]] if args.quick else args.seeds,
+            seeds=args.seeds,
             device=args.device,
             amp=args.amp,
             data_dir=args.data_dir,
@@ -352,7 +529,7 @@ def main(argv=None):
         )
 
     # -- Large-Batch Stability sweep ------------------------------------------
-    if args.category in ("large-batch", "all"):
+    if args.category == "large-batch" or (args.category == "all" and run_heavyweight):
         run_large_batch(
             output_dir=args.output_dir,
             dataset="cifar10",
@@ -360,12 +537,30 @@ def main(argv=None):
             batch_sizes=[128, 256] if args.quick else [128, 512, 2048],
             base_lr=1e-3,
             epochs=1 if args.quick else 100,
+            seeds=args.seeds,
             device=args.device,
             amp=args.amp,
             data_dir=args.data_dir,
         )
 
     wall_time = time.time() - started
+    merged = {
+        "schema_version": 3,
+        "suite": "compare_all",
+        "category": args.category,
+        "quick": args.quick,
+        "optimizers": list(OPTIMIZERS),
+        "task_gradient_optimizers": list(TASK_GRADIENT_OPTIMIZERS),
+        "seeds": args.seeds,
+        "preliminary": len(args.seeds) == 1,
+        "wall_time_seconds": wall_time,
+        "reproducibility": reproducibility_metadata(seed=args.seeds[0]),
+        "results": [
+            str(path.relative_to(args.output_dir))
+            for path in Path(args.output_dir).rglob("result.json")
+        ],
+    }
+    write_json(Path(args.output_dir) / "comparison_manifest.json", merged)
     print(f"\n[compare_all] Finished in {wall_time / 60:.1f} min.")
     print(f"[compare_all] Results under: {args.output_dir}")
     print(

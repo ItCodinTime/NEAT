@@ -6,8 +6,11 @@ import argparse
 import time
 
 from benchmarks.torch_suite.common import (
+    STANDARD_OPTIMIZERS,
     EpochMetrics,
     ExperimentLogger,
+    add_seed_arguments,
+    orchestrate_seeds,
     require_torch,
     run_name,
     seed_everything,
@@ -23,14 +26,14 @@ def parse_args(argv=None):
         choices=("HalfCheetah-v5", "Hopper-v5", "Walker2d-v5"),
         default="HalfCheetah-v5",
     )
-    parser.add_argument("--optimizer", choices=("neat", "adamw"), default="neat")
+    parser.add_argument("--optimizer", choices=STANDARD_OPTIMIZERS, default="neat")
     parser.add_argument("--timesteps", type=int, default=1_000_000)
     parser.add_argument("--eval-frequency", type=int, default=50_000)
     parser.add_argument("--eval-episodes", type=int, default=10)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--target-reward", type=float, default=None)
-    parser.add_argument("--seed", type=int, default=7)
+    add_seed_arguments(parser)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--output-dir", default="benchmark-runs")
     return parser.parse_args(argv)
@@ -39,6 +42,8 @@ def parse_args(argv=None):
 def main(argv=None):
     """Train SAC in fixed timestep chunks and measure sample efficiency."""
     args = parse_args(argv)
+    if orchestrate_seeds("benchmarks.torch_suite.reinforcement_learning", args, argv):
+        return
     torch = require_torch()
     try:
         import gymnasium as gym
@@ -62,9 +67,26 @@ def main(argv=None):
             "adaptive_preconditioning": True,
             "bias_correction": True,
         }
-    else:
+    elif args.optimizer == "adamw":
         optimizer_class = torch.optim.AdamW
         optimizer_kwargs = {"weight_decay": args.weight_decay}
+    elif args.optimizer == "sgd":
+        optimizer_class = torch.optim.SGD
+        optimizer_kwargs = {
+            "momentum": 0.9,
+            "weight_decay": args.weight_decay,
+        }
+    else:
+        from benchmarks.baselines import Lion
+
+        def optimizer_class(parameters, lr, **_kwargs):
+            return Lion.build(
+                parameters,
+                lr=lr,
+                weight_decay=args.weight_decay,
+            )
+
+        optimizer_kwargs = {}
     env = gym.make(args.env)
     eval_env = gym.make(args.env)
     model = SAC(

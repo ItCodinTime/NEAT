@@ -11,6 +11,8 @@ from neat_optim.engine.common import (
     clip_correction,
     conflict_ratio,
     cosine_similarity,
+    deterministic_norm,
+    ordered_dot,
     safe_projection,
     safe_ratio,
     update_ema,
@@ -29,6 +31,28 @@ def _conflict_ratio(gradient: np.ndarray, vector: np.ndarray, eps: float) -> flo
     return conflict_ratio(gradient, vector, eps)
 
 
+def _norm_for_config(value: np.ndarray, config: NEATConfig) -> float:
+    return deterministic_norm(value) if config.deterministic else l2_norm(value)
+
+
+def _cosine_for_config(
+    left: np.ndarray, right: np.ndarray, config: NEATConfig
+) -> float:
+    if not config.deterministic:
+        return cosine_similarity(left, right, config.eps)
+    left_norm = deterministic_norm(left)
+    right_norm = deterministic_norm(right)
+    if left_norm <= config.eps or right_norm <= config.eps:
+        return 0.0
+    return ordered_dot(left, right) / (left_norm * right_norm + config.eps)
+
+
+def _conflict_for_config(
+    gradient: np.ndarray, opponent: np.ndarray, config: NEATConfig
+) -> float:
+    return max(0.0, -_cosine_for_config(gradient, opponent, config))
+
+
 def _compute_nce(
     gradient: np.ndarray,
     opponent: np.ndarray,
@@ -43,18 +67,27 @@ def _compute_nce(
     if state_step < config.correction_warmup_steps:
         return np.zeros_like(gradient), 0.0
 
-    conflict = _conflict_ratio(gradient, opponent, config.eps)
+    conflict = _conflict_for_config(gradient, opponent, config)
     if conflict < config.conflict_threshold:
         return np.zeros_like(gradient), conflict
     if config.nce_mode == "cosine":
         direction = gradient
     else:
-        direction = _safe_projection(gradient, opponent, config.eps)
+        if config.deterministic:
+            denominator = ordered_dot(opponent, opponent)
+            direction = (
+                np.zeros_like(gradient)
+                if denominator <= config.eps
+                else (ordered_dot(gradient, opponent) / (denominator + config.eps))
+                * opponent
+            )
+        else:
+            direction = _safe_projection(gradient, opponent, config.eps)
 
     adaptive_scale = np.float32(1.0)
     if config.adaptive_correction:
-        grad_norm = l2_norm(gradient)
-        opponent_norm = l2_norm(opponent)
+        grad_norm = _norm_for_config(gradient, config)
+        opponent_norm = _norm_for_config(opponent, config)
         reliability = opponent_norm / (grad_norm + opponent_norm + config.eps)
         adaptive_scale = np.float32(
             np.clip(
@@ -65,12 +98,26 @@ def _compute_nce(
         )
 
     correction = -effective_alpha * adaptive_scale * conflict * direction
-    return clip_correction(
-        correction,
-        gradient,
-        clip_ratio=config.nce_clip_ratio,
-        eps=config.eps,
-    ), conflict
+    bound = (
+        config.trust_region_ratio
+        if config.trust_region_ratio > 0.0
+        else config.nce_clip_ratio
+    )
+    if config.deterministic:
+        grad_norm = deterministic_norm(gradient)
+        correction_norm = deterministic_norm(correction)
+        limit = bound * grad_norm
+        if correction_norm > limit and correction_norm > config.eps:
+            correction = correction * (limit / correction_norm)
+        bounded = correction.astype(np.float32, copy=False)
+    else:
+        bounded = clip_correction(
+            correction,
+            gradient,
+            clip_ratio=bound,
+            eps=config.eps,
+        )
+    return bounded, conflict
 
 
 def _bias_correction(beta: float, step: int) -> float:
@@ -84,6 +131,18 @@ def _opponent_signal(
     config: NEATConfig,
 ) -> np.ndarray:
     """Select the historical gradient proxy configured as the opponent."""
+    if config.opponent_ensemble:
+        momentum = as_float32(state.momentum)
+        ema = (
+            np.zeros_like(gradient)
+            if state.gradient_ema is None
+            else as_float32(state.gradient_ema)
+        )
+        weight = config.opponent_ensemble_momentum_weight
+        if config.opponent_ensemble_schedule_steps:
+            progress = min(1.0, state.step / config.opponent_ensemble_schedule_steps)
+            weight = weight + ((1.0 - weight) * progress)
+        return (np.float32(weight) * momentum) + (np.float32(1.0 - weight) * ema)
     if config.opponent_source == "blended":
         momentum = as_float32(state.momentum)
         ema = (
@@ -111,6 +170,18 @@ def _gradient_noise(
     noise_norm = l2_norm(gradient - gradient_ema)
     scale = l2_norm(gradient) + l2_norm(gradient_ema)
     return safe_ratio(noise_norm, scale, eps)
+
+
+def _gradient_noise_for_config(
+    gradient: np.ndarray,
+    gradient_ema: np.ndarray,
+    config: NEATConfig,
+) -> float:
+    if not config.deterministic:
+        return _gradient_noise(gradient, gradient_ema, config.eps)
+    noise_norm = deterministic_norm(gradient - gradient_ema)
+    scale = deterministic_norm(gradient) + deterministic_norm(gradient_ema)
+    return safe_ratio(noise_norm, scale, config.eps)
 
 
 def _effective_alpha(
@@ -179,32 +250,34 @@ def neat_step_reference(
     opponent = _opponent_signal(grad32, state, config)
     nce_gradient = grad32
     nce_opponent = opponent
-    if config.adaptive_preconditioning and config.precondition_nce:
+    precondition_correction = (
+        config.adaptive_preconditioning
+        and config.precondition_nce
+        and config.correction_preconditioning_order == "legacy"
+    )
+    if precondition_correction:
         nce_gradient = grad32 / preconditioner
         nce_opponent = opponent / preconditioner
 
     # These scalar EMAs drive adaptive alpha while remaining part of the saved
     # optimizer state, which makes interrupted runs reproducible.
-    current_conflict = conflict_ratio(nce_gradient, nce_opponent, config.eps)
-    next_conflict_ema = (
-        (config.adaptive_correction_decay * state.conflict_ema)
-        + ((1.0 - config.adaptive_correction_decay) * current_conflict)
+    current_conflict = _conflict_for_config(nce_gradient, nce_opponent, config)
+    next_conflict_ema = (config.adaptive_correction_decay * state.conflict_ema) + (
+        (1.0 - config.adaptive_correction_decay) * current_conflict
     )
-    current_alignment = cosine_similarity(
+    current_alignment = _cosine_for_config(
         grad32,
         as_float32(state.previous_gradient)
         if state.previous_gradient is not None
         else np.zeros_like(grad32),
-        config.eps,
+        config,
     )
-    current_noise = _gradient_noise(grad32, gradient_ema, config.eps)
+    current_noise = _gradient_noise_for_config(grad32, gradient_ema, config)
     next_gradient_noise_ema = (
-        (config.gradient_noise_decay * state.gradient_noise_ema)
-        + ((1.0 - config.gradient_noise_decay) * current_noise)
-    )
-    next_alignment_ema = (
-        (config.gradient_noise_decay * state.alignment_ema)
-        + ((1.0 - config.gradient_noise_decay) * current_alignment)
+        config.gradient_noise_decay * state.gradient_noise_ema
+    ) + ((1.0 - config.gradient_noise_decay) * current_noise)
+    next_alignment_ema = (config.gradient_noise_decay * state.alignment_ema) + (
+        (1.0 - config.gradient_noise_decay) * current_alignment
     )
     effective_alpha = _effective_alpha(
         config,
@@ -224,7 +297,7 @@ def neat_step_reference(
     )
     raw_nce = (
         (nce * preconditioner).astype(np.float32, copy=False)
-        if config.adaptive_preconditioning and config.precondition_nce
+        if precondition_correction
         else nce.astype(np.float32, copy=False)
     )
     corrected_gradient = grad32 + raw_nce
@@ -275,8 +348,7 @@ def neat_step_reference(
     )
     if config.lookahead_k > 0 and step_count % config.lookahead_k == 0:
         slow_param = (
-            slow_param
-            + (config.lookahead_alpha * (next_param - slow_param))
+            slow_param + (config.lookahead_alpha * (next_param - slow_param))
         ).astype(np.float32, copy=False)
         next_param = slow_param.copy()
 
@@ -294,19 +366,19 @@ def neat_step_reference(
         alignment_ema=float(next_alignment_ema),
         step=state.step + 1,
     )
-    grad_norm = l2_norm(grad32)
-    nce_norm = l2_norm(raw_nce)
+    grad_norm = _norm_for_config(grad32, config)
+    nce_norm = _norm_for_config(raw_nce, config)
     # Diagnostics describe the actual correction and update chosen above; they
     # do not feed back into this step.
     metrics = StepMetrics(
         grad_norm=grad_norm,
-        update_norm=l2_norm(step_update),
+        update_norm=_norm_for_config(step_update, config),
         nce_norm=nce_norm,
         conflict_ratio=conflict,
         active_fraction=active_fraction(next_param),
-        opponent_norm=l2_norm(opponent),
+        opponent_norm=_norm_for_config(opponent, config),
         correction_ratio=safe_ratio(nce_norm, grad_norm, config.eps),
-        update_alignment=cosine_similarity(grad32, corrected_gradient, config.eps),
+        update_alignment=_cosine_for_config(grad32, corrected_gradient, config),
         correction_active=1.0 if nce_norm > config.eps else 0.0,
         effective_alpha=effective_alpha,
         gradient_noise=current_noise,
@@ -316,3 +388,89 @@ def neat_step_reference(
         state=next_state,
         metrics=metrics,
     )
+
+
+def neat_group_step_reference(
+    params: list[np.ndarray],
+    grads: list[np.ndarray],
+    states: list[ArrayState],
+    config: NEATConfig,
+) -> list[StepResult]:
+    """Apply v3 conflict granularity to a parameter group."""
+    if not params or not (len(params) == len(grads) == len(states)):
+        raise ValueError("params, grads, and states must be non-empty and aligned")
+    if config.conflict_granularity == "per_parameter":
+        return [
+            neat_step_reference(param, grad, state, config)
+            for param, grad, state in zip(params, grads, states, strict=True)
+        ]
+    steps = {state.step for state in states}
+    scalar_states = {
+        (state.conflict_ema, state.gradient_noise_ema, state.alignment_ema)
+        for state in states
+    }
+    if len(steps) != 1 or len(scalar_states) != 1:
+        raise ValueError("global group stepping requires synchronized states")
+    shapes = [param.shape for param in params]
+    sizes = [param.size for param in params]
+
+    def combine(name: str) -> np.ndarray:
+        arrays = []
+        for param, state in zip(params, states, strict=True):
+            value = getattr(state, name)
+            arrays.append(
+                np.zeros_like(param, dtype=np.float32)
+                if value is None
+                else as_float32(value).reshape(param.shape)
+            )
+        return np.concatenate([array.reshape(-1) for array in arrays])
+
+    first = states[0]
+    combined_state = ArrayState(
+        momentum=combine("momentum"),
+        nce=combine("nce"),
+        previous_gradient=combine("previous_gradient"),
+        gradient_ema=combine("gradient_ema"),
+        second_moment=combine("second_moment"),
+        slow_param=combine("slow_param"),
+        conflict_ema=first.conflict_ema,
+        gradient_noise_ema=first.gradient_noise_ema,
+        alignment_ema=first.alignment_ema,
+        step=first.step,
+    )
+    combined = neat_step_reference(
+        np.concatenate([as_float32(param).reshape(-1) for param in params]),
+        np.concatenate([as_float32(grad).reshape(-1) for grad in grads]),
+        combined_state,
+        config,
+    )
+    boundaries = np.cumsum([0, *sizes])
+    results = []
+    for index, shape in enumerate(shapes):
+        start, end = boundaries[index], boundaries[index + 1]
+
+        def split(
+            name: str, start: int = start, end: int = end, shape=shape
+        ) -> np.ndarray:
+            return getattr(combined.state, name)[start:end].reshape(shape).copy()
+
+        state = ArrayState(
+            momentum=split("momentum"),
+            nce=split("nce"),
+            previous_gradient=split("previous_gradient"),
+            gradient_ema=split("gradient_ema"),
+            second_moment=split("second_moment"),
+            slow_param=split("slow_param"),
+            conflict_ema=combined.state.conflict_ema,
+            gradient_noise_ema=combined.state.gradient_noise_ema,
+            alignment_ema=combined.state.alignment_ema,
+            step=combined.state.step,
+        )
+        results.append(
+            StepResult(
+                param=combined.param[start:end].reshape(shape).copy(),
+                state=state,
+                metrics=combined.metrics,
+            )
+        )
+    return results

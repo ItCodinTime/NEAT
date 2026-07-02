@@ -9,9 +9,12 @@ import time
 import numpy as np
 
 from benchmarks.torch_suite.common import (
+    STANDARD_OPTIMIZERS,
     EpochMetrics,
     ExperimentLogger,
+    add_seed_arguments,
     build_optimizer,
+    orchestrate_seeds,
     require_torch,
     run_name,
     seed_everything,
@@ -24,7 +27,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", choices=("sst2", "alpaca"), default="sst2")
     parser.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
-    parser.add_argument("--optimizer", choices=("neat", "adamw"), default="neat")
+    parser.add_argument("--optimizer", choices=STANDARD_OPTIMIZERS, default="neat")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--gradient-accumulation", type=int, default=1)
@@ -35,7 +38,7 @@ def parse_args(argv=None):
     parser.add_argument("--max-eval-samples", type=int, default=None)
     parser.add_argument("--target", type=float, default=None)
     parser.add_argument("--lora", action="store_true")
-    parser.add_argument("--seed", type=int, default=7)
+    add_seed_arguments(parser)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--output-dir", default="benchmark-runs")
     parser.add_argument("--amp", action="store_true")
@@ -46,8 +49,7 @@ def _alpaca_text(example: dict[str, str]) -> str:
     """Render an Alpaca record into a stable instruction/response template."""
     context = f"\nInput: {example['input']}" if example.get("input") else ""
     return (
-        f"Instruction: {example['instruction']}{context}\n"
-        f"Response: {example['output']}"
+        f"Instruction: {example['instruction']}{context}\nResponse: {example['output']}"
     )
 
 
@@ -137,9 +139,7 @@ def prepare(args):
         task_type = TaskType.SEQ_CLS if args.task == "sst2" else TaskType.CAUSAL_LM
         model = get_peft_model(
             model,
-            LoraConfig(
-                task_type=task_type, r=8, lora_alpha=16, lora_dropout=0.05
-            ),
+            LoraConfig(task_type=task_type, r=8, lora_alpha=16, lora_dropout=0.05),
         )
 
     def collate(rows):
@@ -178,6 +178,8 @@ def evaluate(model, loader, device, task: str) -> float:
 def main(argv=None):
     """Fine-tune one model/optimizer/seed combination and record convergence."""
     args = parse_args(argv)
+    if orchestrate_seeds("benchmarks.torch_suite.language_model", args, argv):
+        return
     torch = require_torch()
     seed_everything(args.seed)
     device = select_device(args.device)

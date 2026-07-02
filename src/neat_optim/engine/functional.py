@@ -35,6 +35,7 @@ def neat_step(
     # research feature falls through to the complete NumPy specification.
     if (
         config.native != "never"
+        and config.spec_version == "nce_spec_v2"
         and config.sparsity_l1 == 0.0
         and config.prune_threshold == 0.0
         and config.opponent_source == "momentum"
@@ -64,7 +65,12 @@ def neat_step(
             # cannot reconstruct the opponent norm after it updates state.
             pre_momentum = as_float32(state.momentum).copy()
             native = load_native_core()
-            native_metrics = native.cpu_step_inplace(
+            kernel = (
+                native.cpu_fused_step_inplace
+                if config.native_fused
+                else native.cpu_step_inplace
+            )
+            native_metrics = kernel(
                 param,
                 grad,
                 state.momentum,

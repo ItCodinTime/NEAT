@@ -16,6 +16,16 @@ minor releases.
   Lookahead, regularization, sparsity, and pruning modes
 - Algorithm-phase comments and API documentation across optimizer engines and
   benchmark infrastructure
+- Exact multi-seed statistics with t-distribution confidence intervals, paired
+  t/Wilcoxon tests, paired Cohen's d, and strict seed-completeness validation
+- Hardened benchmark manifests with source-tree, package, hardware, RNG, and
+  exact-command provenance
+- Default-off v3 trust-bound, opponent-ensemble, preconditioning-order,
+  conflict-granularity, and deterministic reference controls with adapter tests
+- Deterministic ablation and regime-map runners, mechanism-trace plotting,
+  dataset checksum installation, and a named fused-native benchmark path
+- Five-seed benchmark entry-point orchestration plus SGD, Lion, PCGrad, and
+  CAGrad registry coverage in their applicable task settings
 
 ### Changed
 
