@@ -1,4 +1,4 @@
-# NEAT
+# NEAT Documentation
 
 !!! note "Name collision"
     NEAT here means Nash-Equilibrium Adaptive Training. It is unrelated to
@@ -10,40 +10,49 @@ conflict correction term. The repository is structured so the update rule can
 be reasoned about independently of Keras, validated in NumPy, and optionally
 accelerated with a native CPU extension.
 
-The package now exposes two distinct usage styles:
+When the current gradient conflicts with the optimizer's accumulated opponent
+signal, NEAT reduces the conflicting component instead of overwriting or
+blending it away.
 
-- standard NEAT for aggregated batch gradients through the Keras optimizer API
-- player-aware NEAT for explicit per-example or per-task gradients in a custom
-  TensorFlow training loop
+The update rule is kept in a versioned NumPy reference engine, separate from Keras, so it can be studied, tested, and compared independently of any framework. An optional C++ CPU extension drops in behind the same semantics for speed.
 
-The repository also includes benchmark diagnostics and a NEAT sweep harness so
-optimizer changes can be measured instead of argued from theory alone.
-
-## Design Goals
-
-- Keep the public API small and production-friendly.
-- Keep the optimizer math explicit and versioned.
-- Keep the core testable outside any single deep-learning framework.
-- Keep native acceleration behind the same semantics as the reference engine.
-
-## Package Layers
-
-1. `docs/research/math-spec.md`
-   The versioned mathematical contract for the update rule.
-2. `src/neat_optim/engine/reference.py`
-   The canonical NumPy implementation used for correctness validation.
-3. `src/neat_optim/engine/native.py`
-   Optional bridge to the native CPU kernel.
-4. `src/neat_optim/keras_optimizer.py`
-   Keras optimizer adapter for model training.
-5. `src/neat_optim/engine/multiplayer.py` and `src/neat_optim/training/`
-   Explicit per-player stepping and TensorFlow helpers.
-6. `tests/`, `examples/`, and `benchmarks/`
-   Product-layer validation, usage, and measurement.
+---
 
 ## Start Here
 
-- For installation and first usage, read `Quickstart`.
-- For the public API surface, read `API`.
-- For algorithm details, read `Research`.
-- For local development and release workflow, read `Contributing`.
+| You want to… | Go to… |
+|---|---|
+| Install the package and run your first model | [Quickstart](quickstart.md) |
+| Look up a specific class or function | [API Reference](api.md) |
+| Understand the math behind the update rule | [Math Spec](research/math-spec.md) |
+| Understand why this algorithm was designed this way | [Algorithm Overview](research/algorithm.md) |
+| Use per-example gradients in a custom training loop | [Player-Aware Mode](research/player-aware.md) |
+| See benchmark results and reproduce them | [Benchmarks](research/benchmarks.md) |
+| Contribute code or documentation | [Contributing Guide](contributing/development.md) |
+
+---
+
+## Design Principles
+
+**Explicit math.** The update rule is written as a versioned specification in `docs/research/math-spec.md` and implemented exactly in `engine/reference.py`. The Keras optimizer calls into the same logic rather than reimplementing it.
+
+**Framework independence.** The core algorithm depends only on NumPy. Keras, TensorFlow, and PyTorch are optional. This makes the algorithm testable without a GPU or a large framework stack.
+
+**Small public surface.** The public API is narrow by design. New exports are added only when the existing API cannot cover a clear use case.
+
+**Testability.** The reference engine is pure NumPy and deterministic. Unit tests verify specific numerical values from the math spec's worked example. Integration tests verify that the Keras adapter produces results consistent with the reference engine.
+
+---
+
+## Package Layers
+
+```
+docs/research/math-spec.md         Versioned update rule specification
+src/neat_optim/engine/reference.py  Canonical NumPy implementation
+src/neat_optim/engine/native.py     Optional native CPU extension bridge
+src/neat_optim/keras_optimizer.py   Keras optimizer adapter
+src/neat_optim/training/            TensorFlow per-player training helpers
+src/neat_optim/compaction.py        Dense model pruning and compaction
+```
+
+Each layer depends only on the layers below it. Keras-specific code never appears in the reference engine.

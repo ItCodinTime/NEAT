@@ -1,32 +1,29 @@
 # Code of Conduct
 
-NEAT is maintained as a professional engineering project. Participants are
-expected to keep discussions respectful, technically grounded, and focused on
-improving the project.
+NEAT is a technical project. Participation is expected to be respectful, substantive, and focused on improving the work.
 
 ## Expected Behavior
 
-- Be respectful in technical disagreement.
-- Critique ideas, code, and evidence rather than people.
-- Keep bug reports, reviews, and design discussions concrete and reproducible.
-- Assume good intent, but prioritize clarity over ambiguity.
+- Be direct and respectful in technical disagreement
+- Critique ideas, code, and evidence — not people
+- Keep bug reports, reviews, and design discussions concrete and reproducible
+- Assume good intent; ask for clarification before assuming hostility
 
 ## Unacceptable Behavior
 
-- Harassment, discrimination, or personal attacks
+The following are not tolerated in any project space (issues, pull requests, discussions, code review):
+
+- Harassment, discrimination, or personal attacks of any kind
 - Sexualized language or unwelcome sexual attention
-- Doxxing, intimidation, threats, or sustained disruption
-- Repeated bad-faith arguments after a maintainer asks to stop
-- Publishing private information without explicit permission
+- Publishing private information (contact details, personal data) without consent
+- Threats, intimidation, or doxxing
+- Sustained bad-faith arguments after a maintainer has asked to stop
+- Deliberate disruption of discussions or reviews
 
 ## Enforcement
 
-Maintainers may edit, remove, or reject content that violates this policy.
-Serious or repeated violations can result in temporary or permanent bans from
-the project spaces.
+Maintainers may edit, remove, or reject any contribution or comment that violates this policy without prior warning. Repeated or serious violations may result in a temporary or permanent ban from project spaces.
 
 ## Reporting
 
-Report conduct issues privately to the maintainers through the security contact
-path in `SECURITY.md` or through a direct maintainer contact listed on the
-repository.
+Report conduct issues privately through the security contact path in [SECURITY.md](SECURITY.md), or by direct message to a listed project maintainer. Reports are treated confidentially.
