@@ -21,6 +21,7 @@ nav:
       - Benchmarks: research/benchmarks.md
       - Benchmark Plan: research/benchmark-plan.md
       - Regeneron STS Protocol: research/regeneron-sts-protocol.md
+      - Regeneron STS Journal: research/sts-experiment-journal.md
       - CIFAR-10 ResNet-18 MPS Study: research/cifar10-resnet18-mps-2026-06-29.md
   - Contributing:
       - Development: contributing/development.md
