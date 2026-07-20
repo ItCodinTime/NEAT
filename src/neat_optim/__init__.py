@@ -17,6 +17,8 @@ __all__ = [
     "NEAT",
     "NEATDiagnosticsCallback",
     "NEATConfig",
+    "TaskAwareNEATResult",
+    "TorchLion",
     "TorchNEAT",
     "PlayerNEATConfig",
     "PlayerStepMetrics",
@@ -29,10 +31,31 @@ __all__ = [
     "count_nonzero_model_params",
     "measure_keras_file_size",
     "search_compact_dense_model",
+    "task_aware_neat",
 ]
 
 
 def __getattr__(name: str):
+    if name in {"TaskAwareNEATResult", "task_aware_neat"}:
+        try:
+            from neat_optim.torch_multitask import TaskAwareNEATResult, task_aware_neat
+        except Exception as exc:  # pragma: no cover - import guard behavior
+            raise ImportError(
+                "Task-aware NEAT requires PyTorch. Install `neat-optim[torch]`."
+            ) from exc
+        exports = {
+            "TaskAwareNEATResult": TaskAwareNEATResult,
+            "task_aware_neat": task_aware_neat,
+        }
+        return exports[name]
+    if name == "TorchLion":
+        try:
+            from neat_optim.torch_lion import TorchLion
+        except Exception as exc:  # pragma: no cover - import guard behavior
+            raise ImportError(
+                "TorchLion requires PyTorch. Install `neat-optim[torch]`."
+            ) from exc
+        return TorchLion
     if name == "TorchNEAT":
         try:
             from neat_optim.torch_optimizer import TorchNEAT

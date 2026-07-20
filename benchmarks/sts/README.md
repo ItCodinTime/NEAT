@@ -22,10 +22,14 @@ python -m benchmarks.sts.run_suite mechanism
 # 5. Run one-factor NEAT ablations.
 python -m benchmarks.sts.run_suite ablations
 
-# 6. Generate exact tables, paired tests, cost summaries, and plots.
+# 6. Run the validation-only task-aware v2 promotion gate.
+python -m benchmarks.sts.run_suite promotion --seeds 101 103 --epochs 5
+python -m benchmarks.sts.analyze_promotion benchmark-runs/sts-v2-gate
+
+# 7. Generate exact tables, paired tests, cost summaries, and plots.
 python -m benchmarks.sts.analyze benchmark-runs/sts
 
-# 7. Capture the final machine, packages, git state, and dataset hashes.
+# 8. Capture the final machine, packages, git state, and dataset hashes.
 python -m benchmarks.sts.environment
 ```
 
@@ -33,6 +37,11 @@ Every trial writes `config.json`, append-only `metrics.jsonl`, and a final
 `result.json`. Trial paths are deterministic. Re-running a completed command
 skips it unless `--overwrite` is explicit, so interrupted matrices can resume
 without replacing completed evidence.
+
+The `promotion` phase is exploratory and excluded from the original Tier 1
+aggregation. It compares task-aware soft projection at `alpha=0`, `0.25`,
+`0.5`, and `1.0` under the same Adam transport. The equation and stopping rule
+are documented in `docs/research/task-aware-neat-v2.md`.
 
 The full protocol and claim boundaries are in
 `docs/research/regeneron-sts-protocol.md`.
