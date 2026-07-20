@@ -81,3 +81,25 @@ grid. Tier 1 remains blocked until `locked_lrs.json` is complete.
   a validation-only promotion matrix, and mathematical unit tests.
 - V2 is a post-result method revision. It is not pooled with the preregistered
   v1 study and cannot retroactively confirm the original hypothesis.
+
+### V2 promotion gate outcome
+
+- Provisioned one Vultr `vhf-8c-32gb` CPU worker at USD 0.263 per hour using the
+  existing dedicated SSH key and two-source `/32` firewall. The instance ran
+  committed revision `32ef65f`; remote lint and 97 tests passed before training.
+- Completed 20 validation-only trials: two datasets, seeds `101` and `103`,
+  plain Adam, and task-aware Adam at alpha `0`, `0.25`, `0.5`, and `1.0`, each
+  for five epochs. Pipeline exit status was zero and every result recorded a
+  null test field.
+- Alpha `0.5` improved Multi-MNIST by `0.0011` average accuracy relative to its
+  matched alpha-zero control, but reduced Multi-Fashion-MNIST by `0.0005`.
+  Alpha `0.25` and `1.0` also failed the declared cross-dataset rule. All three
+  candidates received `STOP`; no five-seed v2 test run is authorized.
+- Correction ratios increased approximately linearly with alpha, from about
+  `0.02` through `0.075`, without a corresponding performance dose response.
+  Task-aware conflict detection and stronger correction are therefore not
+  sufficient explanations for improved generalization on these benchmarks.
+- Synchronized raw runs, the machine-readable decision, and environment
+  provenance to `benchmark-runs/sts-v2-gate`. Deleted the worker immediately
+  afterward and verified the instance API returned HTTP 404. Pending account
+  charges increased from about USD 13.48 to USD 14.06 during this phase.

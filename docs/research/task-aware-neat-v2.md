@@ -68,6 +68,30 @@ measured correction is non-zero. Advancing a candidate triggers a separate
 method-specific learning-rate tune before any five-seed test run. Failed gate
 results remain documented as negative evidence.
 
+## Promotion result: 2026-07-20
+
+The validation-only gate completed all 20 declared trials on Vultr at clean git
+revision `32ef65f`. It used two tuning seeds, five epochs, and did not evaluate
+the test split.
+
+| Dataset | Alpha | Control | Candidate | Paired gain | Correction ratio |
+|---|---:|---:|---:|---:|---:|
+| Multi-MNIST | 0.25 | 0.9630 | 0.9630 | -0.0000 | 0.0207 |
+| Multi-MNIST | 0.50 | 0.9630 | 0.9641 | +0.0011 | 0.0378 |
+| Multi-MNIST | 1.00 | 0.9630 | 0.9630 | +0.0000 | 0.0749 |
+| Multi-Fashion-MNIST | 0.25 | 0.8467 | 0.8442 | -0.0025 | 0.0183 |
+| Multi-Fashion-MNIST | 0.50 | 0.8467 | 0.8463 | -0.0005 | 0.0367 |
+| Multi-Fashion-MNIST | 1.00 | 0.8467 | 0.8462 | -0.0005 | 0.0739 |
+
+All three candidates received `STOP`. Alpha `0.5` produced a small positive
+Multi-MNIST gain but did not transfer to Multi-Fashion-MNIST. Correction ratio
+scaled with alpha as designed, while validation gain did not. This is evidence
+that making the correction task-aware and materially larger is not sufficient
+to produce a general benchmark improvement.
+
+These are two-seed exploratory results, not significance-tested paper results.
+The gate prevents a five-seed test run of this formulation.
+
 ## Diagnostics
 
 Each epoch records correction ratio, raw/corrected gradient alignment, mean
