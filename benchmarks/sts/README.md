@@ -26,10 +26,15 @@ python -m benchmarks.sts.run_suite ablations
 python -m benchmarks.sts.run_suite promotion --seeds 101 103 --epochs 5
 python -m benchmarks.sts.analyze_promotion benchmark-runs/sts-v2-gate
 
-# 7. Generate exact tables, paired tests, cost summaries, and plots.
+# 7. Explore whether measured task conflict changes with image overlap.
+python -m benchmarks.sts.run_suite severity \
+  --seeds 101 103 107 --epochs 5
+python -m benchmarks.sts.analyze_severity benchmark-runs/sts-conflict-severity
+
+# 8. Generate exact tables, paired tests, cost summaries, and plots.
 python -m benchmarks.sts.analyze benchmark-runs/sts
 
-# 8. Capture the final machine, packages, git state, and dataset hashes.
+# 9. Capture the final machine, packages, git state, and dataset hashes.
 python -m benchmarks.sts.environment
 ```
 
@@ -45,3 +50,9 @@ are documented in `docs/research/task-aware-neat-v2.md`.
 
 The full protocol and claim boundaries are in
 `docs/research/regeneron-sts-protocol.md`.
+
+The severity phase is exploratory and validation-only. It varies the diagonal
+offset of the two overlaid images across `0`, `4`, and `8` pixels, records the
+measured task-gradient cosine, and compares task-aware alpha `0.5` with its
+exact alpha-zero Adam transport control. Overlap is treated as an intervention,
+not as a substitute for measured conflict.

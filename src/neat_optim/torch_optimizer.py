@@ -89,6 +89,8 @@ class TorchNEAT(torch.optim.Optimizer):
         conflict: torch.Tensor,
         alpha: torch.Tensor,
         noise: torch.Tensor,
+        step_update: torch.Tensor,
+        learning_rate: float,
     ) -> None:
         """Accumulate device-side scalars without synchronizing every update."""
         grad_norm = self._norm(gradient)
@@ -101,6 +103,12 @@ class TorchNEAT(torch.optim.Optimizer):
             "correction_active_fraction": (correction_norm > self.config.eps).float(),
             "mean_effective_alpha": alpha,
             "mean_gradient_noise": noise,
+            "mean_gradient_norm": grad_norm,
+            "mean_correction_norm": correction_norm,
+            "mean_step_norm": self._norm(step_update),
+            "mean_effective_step_size": (
+                learning_rate * self._norm(step_update) / (grad_norm + self.config.eps)
+            ),
         }
         for key, value in values.items():
             self._diagnostics[key] += value
@@ -316,6 +324,8 @@ class TorchNEAT(torch.optim.Optimizer):
                         conflict,
                         effective_alpha,
                         noise,
+                        update,
+                        lr,
                     )
         return loss
 
