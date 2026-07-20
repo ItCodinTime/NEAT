@@ -103,3 +103,26 @@ grid. Tier 1 remains blocked until `locked_lrs.json` is complete.
   provenance to `benchmark-runs/sts-v2-gate`. Deleted the worker immediately
   afterward and verified the instance API returned HTTP 404. Pending account
   charges increased from about USD 13.48 to USD 14.06 during this phase.
+
+### Diagnostics and severity follow-up
+
+- Audited proposed usability and benchmark additions against the current tree.
+  Diagnostics, conflict gating, adaptive correction, TensorBoard output, and
+  broad benchmark harnesses already existed; presets and changed defaults were
+  rejected because no corrected candidate passed the v2 promotion rule.
+- Added optimizer gradient/correction/step norms and effective step size to both
+  Keras and PyTorch adapters. Keras epoch diagnostics now enter `History` and can
+  generate portable JSON or HTML reports with explicit causal-claim limits.
+- Added a validation-only conflict-severity phase. It varies paired-image
+  overlap, measures task-gradient cosine, and compares task-aware alpha `0.5`
+  with its exact alpha-zero Adam transport control.
+- At phase start Vultr had no running instances, USD `14.06` pending charges,
+  and approximately USD `85.94` of headroom under the USD `100` ceiling.
+- The first local smoke attempt exposed a PyTorch MPS adaptive-pooling
+  limitation for this model shape. Re-running explicitly on CPU completed all
+  six cells and the analyzer successfully generated its artifacts.
+- In the one-epoch, 512-example Multi-MNIST integration smoke, task-aware alpha
+  `0.5` correction ratio changed from about `0.042` at offset `0`, to `0.0077`
+  at offset `4`, to `0` at offset `8`. This is preliminary mechanism evidence
+  only, but it satisfies the gate that overlap must manipulate measured
+  correction activity before a larger validation sweep is purchased.

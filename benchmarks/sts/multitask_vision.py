@@ -67,6 +67,7 @@ def parse_args(argv=None):
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument("--overlap-offset", type=int, default=8)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--train-limit", type=int, default=None)
     parser.add_argument("--eval-limit", type=int, default=None)
@@ -94,9 +95,20 @@ def _require_torch():
 class PairedVisionDataset:
     """Overlay two fixed-order source images on a 36x36 canvas."""
 
-    def __init__(self, base, indices, *, pairing_seed: int, limit: int | None = None):
+    def __init__(
+        self,
+        base,
+        indices,
+        *,
+        pairing_seed: int,
+        overlap_offset: int = 8,
+        limit: int | None = None,
+    ):
         torch = _require_torch()
+        if not 0 <= overlap_offset <= 8:
+            raise ValueError("overlap_offset must be in [0, 8]")
         self.base = base
+        self.overlap_offset = overlap_offset
         self.indices = torch.as_tensor(indices, dtype=torch.int64)
         if limit is not None:
             self.indices = self.indices[:limit]
@@ -114,17 +126,21 @@ class PairedVisionDataset:
         second_image, second_label = self.base[second_index]
         canvas = torch.zeros((1, 36, 36), dtype=first_image.dtype)
         canvas[:, :28, :28] = first_image
-        canvas[:, 8:36, 8:36] = torch.maximum(canvas[:, 8:36, 8:36], second_image)
+        start = self.overlap_offset
+        stop = start + 28
+        canvas[:, start:stop, start:stop] = torch.maximum(
+            canvas[:, start:stop, start:stop], second_image
+        )
         return canvas, torch.tensor(first_label), torch.tensor(second_label)
 
 
-def dataset_spec_hash(dataset: str) -> str:
+def dataset_spec_hash(dataset: str, overlap_offset: int = 8) -> str:
     payload = {
         "dataset": dataset,
         "spec_version": DATASET_SPEC_VERSION,
         "canvas": [36, 36],
         "first_origin": [0, 0],
-        "second_origin": [8, 8],
+        "second_origin": [overlap_offset, overlap_offset],
         "composition": "pixelwise_max",
         "split_seed": 20260718,
         "train_pairing_seed": 314159,
@@ -158,18 +174,21 @@ def make_datasets(args):
         base_train,
         train_indices,
         pairing_seed=314159,
+        overlap_offset=args.overlap_offset,
         limit=args.train_limit,
     )
     valid = PairedVisionDataset(
         base_train,
         valid_indices,
         pairing_seed=271828,
+        overlap_offset=args.overlap_offset,
         limit=args.eval_limit,
     )
     test = PairedVisionDataset(
         base_test,
         torch.arange(len(base_test)),
         pairing_seed=161803,
+        overlap_offset=args.overlap_offset,
         limit=args.eval_limit,
     )
     return train, valid, test
@@ -480,16 +499,17 @@ def peak_memory_mb(device) -> float:
 
 def result_path(args) -> Path:
     variant = args.neat_variant if args.method in {"neat", "task_neat"} else "base"
-    return (
+    root = (
         Path(args.output_dir)
         / "runs"
         / args.dataset
         / args.setting
         / args.method
         / variant
-        / f"seed_{args.seed}"
-        / "result.json"
     )
+    if args.overlap_offset != 8:
+        root = root / f"overlap_offset_{args.overlap_offset}"
+    return root / f"seed_{args.seed}" / "result.json"
 
 
 def main(argv=None) -> None:
@@ -520,7 +540,8 @@ def main(argv=None) -> None:
     config = {
         **vars(args),
         "dataset_spec_version": DATASET_SPEC_VERSION,
-        "dataset_spec_sha256": dataset_spec_hash(args.dataset),
+        "dataset_spec_sha256": dataset_spec_hash(args.dataset, args.overlap_offset),
+        "overlap_pixels_per_axis": 28 - args.overlap_offset,
         "train_examples": len(train_loader.dataset),
         "validation_examples": len(valid_loader.dataset),
         "test_examples": len(test_loader.dataset),

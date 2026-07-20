@@ -55,6 +55,11 @@ Snapshot keys:
 - `correction_active_fraction`
 - `mean_effective_alpha`
 - `mean_gradient_noise`
+- `mean_gradient_norm`
+- `mean_correction_norm`
+- `mean_step_norm`
+- `mean_effective_step_size`: update norm after learning-rate scaling divided by
+  raw gradient norm
 
 ### `neat_optim.TorchNEAT`
 
@@ -90,14 +95,33 @@ Use this when you want epoch-level diagnostics in memory or TensorBoard:
 from neat_optim import NEATDiagnosticsCallback
 
 callbacks = [
-    NEATDiagnosticsCallback(log_dir="runs/neat", reset_each_epoch=True),
+    NEATDiagnosticsCallback(
+        log_dir="runs/neat",
+        report_path="runs/neat/training-report.html",
+        reset_each_epoch=True,
+    ),
 ]
-model.fit(x_train, y_train, callbacks=callbacks)
+history = model.fit(x_train, y_train, callbacks=callbacks)
+print(history.history["neat_mean_conflict_ratio"])
 ```
 
-If `log_dir` is set, TensorFlow must be installed because the callback writes
-with `tf.summary`. Without `log_dir`, the callback stores snapshots in
-`callback.history`.
+The callback adds `neat_*` metrics to Keras `History`, stores raw snapshots in
+`callback.history`, and stores the combined epoch logs in
+`callback.epoch_history`. If `report_path` ends in `.json` or `.html`, it also
+writes a portable training report at the end of fitting. If `log_dir` is set,
+TensorFlow must be installed because TensorBoard output uses `tf.summary`.
+
+### `neat_optim.diagnose_snapshot`
+
+Classifies a snapshot as `inactive`, `active`, or `strong`. This classification
+describes correction activity only. It never treats optimizer diagnostics as
+evidence of improved generalization.
+
+### `neat_optim.write_training_report`
+
+Writes numeric epoch logs to JSON or a self-contained HTML table. The report
+includes the diagnostic interpretation and an explicit reminder that a matched
+correction-off control is needed for causal performance claims.
 
 ### `neat_optim.NEATConfig`
 

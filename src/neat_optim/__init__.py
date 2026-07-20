@@ -29,13 +29,23 @@ __all__ = [
     "benchmark_inference_latency",
     "compact_dense_model",
     "count_nonzero_model_params",
+    "diagnose_snapshot",
     "measure_keras_file_size",
     "search_compact_dense_model",
     "task_aware_neat",
+    "write_training_report",
 ]
 
 
 def __getattr__(name: str):
+    if name in {"diagnose_snapshot", "write_training_report"}:
+        from neat_optim.diagnostics import diagnose_snapshot, write_training_report
+
+        exports = {
+            "diagnose_snapshot": diagnose_snapshot,
+            "write_training_report": write_training_report,
+        }
+        return exports[name]
     if name in {"TaskAwareNEATResult", "task_aware_neat"}:
         try:
             from neat_optim.torch_multitask import TaskAwareNEATResult, task_aware_neat

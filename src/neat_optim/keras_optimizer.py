@@ -170,6 +170,10 @@ class NEAT(keras.optimizers.Optimizer):
         self.diagnostic_correction_active_sum = None
         self.diagnostic_effective_alpha_sum = None
         self.diagnostic_gradient_noise_sum = None
+        self.diagnostic_gradient_norm_sum = None
+        self.diagnostic_correction_norm_sum = None
+        self.diagnostic_step_norm_sum = None
+        self.diagnostic_effective_step_size_sum = None
         self.diagnostic_count = None
 
     def build(self, variables) -> None:
@@ -213,6 +217,18 @@ class NEAT(keras.optimizers.Optimizer):
         )
         self.diagnostic_gradient_noise_sum = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_gradient_noise_sum"
+        )
+        self.diagnostic_gradient_norm_sum = self.add_variable(
+            shape=(), dtype="float32", name="diagnostic_gradient_norm_sum"
+        )
+        self.diagnostic_correction_norm_sum = self.add_variable(
+            shape=(), dtype="float32", name="diagnostic_correction_norm_sum"
+        )
+        self.diagnostic_step_norm_sum = self.add_variable(
+            shape=(), dtype="float32", name="diagnostic_step_norm_sum"
+        )
+        self.diagnostic_effective_step_size_sum = self.add_variable(
+            shape=(), dtype="float32", name="diagnostic_effective_step_size_sum"
         )
         self.diagnostic_count = self.add_variable(
             shape=(), dtype="float32", name="diagnostic_count"
@@ -395,6 +411,8 @@ class NEAT(keras.optimizers.Optimizer):
         conflict_ratio,
         effective_alpha,
         current_noise,
+        step_update,
+        learning_rate,
     ) -> None:
         """Sample diagnostic-only reductions without changing update math."""
         should_record = ops.equal(ops.mod(self.iterations, self.diagnostic_interval), 0)
@@ -405,6 +423,10 @@ class NEAT(keras.optimizers.Optimizer):
             correction_ratio = correction_norm / (grad_norm + self.eps)
             update_alignment = self._cosine_similarity(gradient, corrected_gradient)
             opponent_norm = self._l2_norm(opponent)
+            step_norm = self._l2_norm(step_update)
+            effective_step_size = self._l2_norm(learning_rate * step_update) / (
+                grad_norm + self.eps
+            )
             correction_active = ops.cast(correction_norm > self.eps, "float32")
             values = (
                 (self.diagnostic_conflict_sum, conflict_ratio),
@@ -414,6 +436,10 @@ class NEAT(keras.optimizers.Optimizer):
                 (self.diagnostic_correction_active_sum, correction_active),
                 (self.diagnostic_effective_alpha_sum, ops.mean(effective_alpha)),
                 (self.diagnostic_gradient_noise_sum, current_noise),
+                (self.diagnostic_gradient_norm_sum, grad_norm),
+                (self.diagnostic_correction_norm_sum, correction_norm),
+                (self.diagnostic_step_norm_sum, step_norm),
+                (self.diagnostic_effective_step_size_sum, effective_step_size),
             )
             for accumulator, value in values:
                 self.assign_add(accumulator, ops.cast(value, "float32"))
@@ -598,6 +624,8 @@ class NEAT(keras.optimizers.Optimizer):
             conflict_ratio,
             effective_alpha,
             current_noise,
+            step_update,
+            learning_rate,
         )
 
     def reset_diagnostics(self) -> None:
@@ -611,6 +639,10 @@ class NEAT(keras.optimizers.Optimizer):
         self.assign(self.diagnostic_correction_active_sum, 0.0)
         self.assign(self.diagnostic_effective_alpha_sum, 0.0)
         self.assign(self.diagnostic_gradient_noise_sum, 0.0)
+        self.assign(self.diagnostic_gradient_norm_sum, 0.0)
+        self.assign(self.diagnostic_correction_norm_sum, 0.0)
+        self.assign(self.diagnostic_step_norm_sum, 0.0)
+        self.assign(self.diagnostic_effective_step_size_sum, 0.0)
         self.assign(self.diagnostic_count, 0.0)
 
     def diagnostic_snapshot(self) -> dict[str, float]:
@@ -627,6 +659,10 @@ class NEAT(keras.optimizers.Optimizer):
                 "correction_active_fraction": 0.0,
                 "mean_effective_alpha": 0.0,
                 "mean_gradient_noise": 0.0,
+                "mean_gradient_norm": 0.0,
+                "mean_correction_norm": 0.0,
+                "mean_step_norm": 0.0,
+                "mean_effective_step_size": 0.0,
             }
         return {
             "mean_conflict_ratio": (
@@ -649,6 +685,18 @@ class NEAT(keras.optimizers.Optimizer):
             ),
             "mean_gradient_noise": (
                 self._scalar_to_float(self.diagnostic_gradient_noise_sum) / count
+            ),
+            "mean_gradient_norm": (
+                self._scalar_to_float(self.diagnostic_gradient_norm_sum) / count
+            ),
+            "mean_correction_norm": (
+                self._scalar_to_float(self.diagnostic_correction_norm_sum) / count
+            ),
+            "mean_step_norm": (
+                self._scalar_to_float(self.diagnostic_step_norm_sum) / count
+            ),
+            "mean_effective_step_size": (
+                self._scalar_to_float(self.diagnostic_effective_step_size_sum) / count
             ),
         }
 

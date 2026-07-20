@@ -56,6 +56,10 @@ def test_torch_neat_matches_reference_basic_step() -> None:
     assert optimizer.diagnostic_snapshot()["mean_effective_alpha"] == pytest.approx(
         0.25
     )
+    snapshot = optimizer.diagnostic_snapshot()
+    assert snapshot["mean_gradient_norm"] > 0.0
+    assert snapshot["mean_step_norm"] > 0.0
+    assert snapshot["mean_effective_step_size"] > 0.0
 
 
 def test_torch_neat_accepts_pytorch_lr_alias() -> None:

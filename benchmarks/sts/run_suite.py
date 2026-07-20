@@ -16,7 +16,8 @@ from benchmarks.sts.multitask_vision import NEAT_VARIANTS, TASK_NEAT_VARIANTS
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "phase", choices=("smoke", "tier1", "mechanism", "ablations", "promotion")
+        "phase",
+        choices=("smoke", "tier1", "mechanism", "ablations", "promotion", "severity"),
     )
     parser.add_argument(
         "--datasets", nargs="+", choices=DATASETS, default=list(DATASETS)
@@ -25,6 +26,7 @@ def parse_args(argv=None):
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--overlap-offsets", nargs="+", type=int, default=[0, 4, 8])
     parser.add_argument("--data-dir", default="data/sts")
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--locked-lrs", default="benchmark-runs/sts/locked_lrs.json")
@@ -35,6 +37,8 @@ def parse_args(argv=None):
             if args.phase == "promotion"
             else "benchmark-runs/sts"
         )
+        if args.phase == "severity":
+            args.output_dir = "benchmark-runs/sts-conflict-severity"
     return args
 
 
@@ -51,7 +55,7 @@ def _matrix(args, learning_rates):
     if args.phase == "smoke":
         for dataset in args.datasets:
             for method in METHODS:
-                yield dataset, method, "multi", "base", args.seeds[0], 1, 512, 256
+                yield dataset, method, "multi", "base", args.seeds[0], 1, 512, 256, 8
     elif args.phase == "tier1":
         for dataset in args.datasets:
             for method in METHODS:
@@ -65,6 +69,7 @@ def _matrix(args, learning_rates):
                         args.epochs,
                         None,
                         None,
+                        8,
                     )
     elif args.phase == "mechanism":
         for dataset in args.datasets:
@@ -79,6 +84,7 @@ def _matrix(args, learning_rates):
                         args.epochs,
                         None,
                         None,
+                        8,
                     )
     elif args.phase == "ablations":
         variants = [variant for variant in NEAT_VARIANTS if variant != "base"]
@@ -94,14 +100,15 @@ def _matrix(args, learning_rates):
                         args.epochs,
                         None,
                         None,
+                        8,
                     )
-    else:
+    elif args.phase == "promotion":
         variants = [
             variant for variant in TASK_NEAT_VARIANTS if variant.startswith("adam_")
         ]
         for dataset in args.datasets:
             for seed in args.seeds:
-                yield dataset, "adam", "multi", "base", seed, args.epochs, None, None
+                yield dataset, "adam", "multi", "base", seed, args.epochs, None, None, 8
                 for variant in variants:
                     yield (
                         dataset,
@@ -112,7 +119,24 @@ def _matrix(args, learning_rates):
                         args.epochs,
                         None,
                         None,
+                        8,
                     )
+    else:
+        for dataset in args.datasets:
+            for offset in args.overlap_offsets:
+                for seed in args.seeds:
+                    for variant in ("adam_alpha_0", "adam_alpha_0_5"):
+                        yield (
+                            dataset,
+                            "task_neat",
+                            "multi",
+                            variant,
+                            seed,
+                            args.epochs,
+                            None,
+                            None,
+                            offset,
+                        )
 
 
 def main(argv=None) -> None:
@@ -132,6 +156,7 @@ def main(argv=None) -> None:
         epochs,
         train_limit,
         eval_limit,
+        overlap_offset,
     ) in _matrix(args, learning_rates):
         command = [
             sys.executable,
@@ -159,12 +184,14 @@ def main(argv=None) -> None:
             args.data_dir,
             "--output-dir",
             args.output_dir,
+            "--overlap-offset",
+            str(overlap_offset),
         ]
         if train_limit is not None:
             command.extend(["--train-limit", str(train_limit)])
         if eval_limit is not None:
             command.extend(["--eval-limit", str(eval_limit)])
-        if args.phase == "promotion":
+        if args.phase in {"promotion", "severity"}:
             command.append("--skip-test")
         commands.append(command)
     manifest = {
@@ -172,7 +199,8 @@ def main(argv=None) -> None:
         "phase": args.phase,
         "seeds": args.seeds,
         "learning_rates": learning_rates,
-        "test_split_used": args.phase != "promotion",
+        "test_split_used": args.phase not in {"promotion", "severity"},
+        "overlap_offsets": args.overlap_offsets if args.phase == "severity" else [8],
         "commands": commands,
     }
     write_json(Path(args.output_dir) / "manifests" / f"{args.phase}.json", manifest)

@@ -4,7 +4,7 @@ import pytest
 tensorflow = pytest.importorskip("tensorflow")
 keras = pytest.importorskip("keras")
 
-from neat_optim import NEAT  # noqa: E402
+from neat_optim import NEAT, NEATDiagnosticsCallback  # noqa: E402
 from neat_optim.config import NEATConfig  # noqa: E402
 from neat_optim.engine.reference import neat_step_reference  # noqa: E402
 from neat_optim.state import ArrayState  # noqa: E402
@@ -537,3 +537,26 @@ def test_keras_optimizer_reports_zero_correction_when_nce_is_disabled() -> None:
     assert snapshot["mean_conflict_ratio"] == pytest.approx(0.0, abs=1e-8)
     assert snapshot["mean_correction_ratio"] == pytest.approx(0.0, abs=1e-8)
     assert snapshot["correction_active_fraction"] == pytest.approx(0.0, abs=1e-8)
+
+
+def test_diagnostics_callback_adds_metrics_to_history_and_report(tmp_path) -> None:
+    model = keras.Sequential(
+        [keras.layers.Input((2,)), keras.layers.Dense(1, use_bias=False)]
+    )
+    model.compile(optimizer=NEAT(learning_rate=0.01), loss="mse")
+    report_path = tmp_path / "training-report.json"
+    callback = NEATDiagnosticsCallback(report_path=str(report_path))
+
+    history = model.fit(
+        np.array([[1.0, -1.0], [0.5, 0.25]], dtype=np.float32),
+        np.array([[0.0], [1.0]], dtype=np.float32),
+        epochs=2,
+        batch_size=1,
+        callbacks=[callback],
+        verbose=0,
+    )
+
+    assert "neat_mean_conflict_ratio" in history.history
+    assert len(history.history["neat_mean_conflict_ratio"]) == 2
+    assert len(callback.epoch_history) == 2
+    assert report_path.exists()

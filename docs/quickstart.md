@@ -68,7 +68,12 @@ model.fit(
     y_train,
     epochs=5,
     verbose=0,
-    callbacks=[NEATDiagnosticsCallback(log_dir="runs/neat")],
+    callbacks=[
+        NEATDiagnosticsCallback(
+            log_dir="runs/neat",
+            report_path="runs/neat/training-report.html",
+        )
+    ],
 )
 print(optimizer.diagnostic_snapshot())
 ```
@@ -102,6 +107,10 @@ print(model.optimizer.diagnostic_snapshot())
 #   "correction_active_fraction": 0.74,
 # }
 ```
+
+The callback also adds fields such as `neat_mean_conflict_ratio`,
+`neat_mean_correction_norm`, and `neat_mean_effective_step_size` to the object
+returned by `model.fit`.
 
 If `mean_conflict_ratio` and `correction_active_fraction` are both near zero, the correction is not engaging on this task. That is normal for tasks with well-aligned gradients — standard Adam may be equally effective.
 

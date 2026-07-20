@@ -22,6 +22,7 @@ nav:
       - Benchmark Plan: research/benchmark-plan.md
       - Regeneron STS Protocol: research/regeneron-sts-protocol.md
       - Task-aware NEAT v2: research/task-aware-neat-v2.md
+      - Diagnostics and Evidence Roadmap: research/diagnostics-and-evidence-roadmap.md
       - Regeneron STS Journal: research/sts-experiment-journal.md
       - CIFAR-10 ResNet-18 MPS Study: research/cifar10-resnet18-mps-2026-06-29.md
   - Contributing:
