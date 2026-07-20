@@ -57,3 +57,27 @@ remain the authoritative source for numerical results.
 Bootstrap the final serial worker from a clean committed revision, verify git
 and dataset provenance, then run the declared validation-only learning-rate
 grid. Tier 1 remains blocked until `locked_lrs.json` is complete.
+
+## 2026-07-20
+
+### Completed v1 result and v2 diagnosis
+
+- The full tuning, Tier 1, mechanism, and ablation matrices completed and were
+  synchronized locally before the Vultr worker was deleted.
+- Base correction-only NEAT substantially underperformed all three baselines.
+  Correction-off NEAT behaved almost identically, while sign transport nearly
+  recovered baseline performance. The mechanism correlation was negative.
+- Code review established that v1 NEAT received an already averaged task
+  gradient and measured conflict against historical momentum. It did not see
+  the per-task gradients used by PCGrad and MGDA. Its learning-rate grid also
+  ended at `0.003`, with the selected value on that boundary.
+
+### Exploratory task-aware v2
+
+- Added a global shared-trunk soft projection over explicit per-task gradients.
+  The projection uses linear conflict scaling and feeds an unchanged Adam or
+  published Lion transport.
+- Added exact `alpha=0` transport controls, per-step task-conflict diagnostics,
+  a validation-only promotion matrix, and mathematical unit tests.
+- V2 is a post-result method revision. It is not pooled with the preregistered
+  v1 study and cannot retroactively confirm the original hypothesis.

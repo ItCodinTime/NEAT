@@ -10,12 +10,14 @@ from pathlib import Path
 
 from benchmarks.manifest import write_json
 from benchmarks.sts import DATASETS, METHODS, PAPER_SEEDS
-from benchmarks.sts.multitask_vision import NEAT_VARIANTS
+from benchmarks.sts.multitask_vision import NEAT_VARIANTS, TASK_NEAT_VARIANTS
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("smoke", "tier1", "mechanism", "ablations"))
+    parser.add_argument(
+        "phase", choices=("smoke", "tier1", "mechanism", "ablations", "promotion")
+    )
     parser.add_argument(
         "--datasets", nargs="+", choices=DATASETS, default=list(DATASETS)
     )
@@ -24,9 +26,16 @@ def parse_args(argv=None):
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--data-dir", default="data/sts")
-    parser.add_argument("--output-dir", default="benchmark-runs/sts")
+    parser.add_argument("--output-dir", default=None)
     parser.add_argument("--locked-lrs", default="benchmark-runs/sts/locked_lrs.json")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.output_dir is None:
+        args.output_dir = (
+            "benchmark-runs/sts-v2-gate"
+            if args.phase == "promotion"
+            else "benchmark-runs/sts"
+        )
+    return args
 
 
 def _locked_lrs(path: str) -> dict[str, dict[str, float]]:
@@ -71,7 +80,7 @@ def _matrix(args, learning_rates):
                         None,
                         None,
                     )
-    else:
+    elif args.phase == "ablations":
         variants = [variant for variant in NEAT_VARIANTS if variant != "base"]
         for dataset in args.datasets:
             for variant in variants:
@@ -79,6 +88,24 @@ def _matrix(args, learning_rates):
                     yield (
                         dataset,
                         "neat",
+                        "multi",
+                        variant,
+                        seed,
+                        args.epochs,
+                        None,
+                        None,
+                    )
+    else:
+        variants = [
+            variant for variant in TASK_NEAT_VARIANTS if variant.startswith("adam_")
+        ]
+        for dataset in args.datasets:
+            for seed in args.seeds:
+                yield dataset, "adam", "multi", "base", seed, args.epochs, None, None
+                for variant in variants:
+                    yield (
+                        dataset,
+                        "task_neat",
                         "multi",
                         variant,
                         seed,
@@ -127,7 +154,7 @@ def main(argv=None) -> None:
             "--workers",
             str(args.workers),
             "--lr",
-            str(learning_rates[dataset][method]),
+            str(learning_rates[dataset].get(method, learning_rates[dataset]["adam"])),
             "--data-dir",
             args.data_dir,
             "--output-dir",
@@ -137,12 +164,15 @@ def main(argv=None) -> None:
             command.extend(["--train-limit", str(train_limit)])
         if eval_limit is not None:
             command.extend(["--eval-limit", str(eval_limit)])
+        if args.phase == "promotion":
+            command.append("--skip-test")
         commands.append(command)
     manifest = {
         "schema_version": 1,
         "phase": args.phase,
         "seeds": args.seeds,
         "learning_rates": learning_rates,
+        "test_split_used": args.phase != "promotion",
         "commands": commands,
     }
     write_json(Path(args.output_dir) / "manifests" / f"{args.phase}.json", manifest)

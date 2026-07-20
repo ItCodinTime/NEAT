@@ -16,6 +16,8 @@ from benchmarks.sts.multitask_vision import (  # noqa: E402
     make_model,
 )
 
+from neat_optim import TorchLion, task_aware_neat  # noqa: E402
+
 
 def test_mgda_returns_exact_minimum_norm_two_task_combination() -> None:
     rows = ((torch.tensor([1.0, 0.0]),), (torch.tensor([0.0, 1.0]),))
@@ -30,6 +32,48 @@ def test_pcgrad_changes_only_conflicting_task_gradients() -> None:
     ratio, alignment = gradient_geometry(raw, combined)
     assert float(ratio) > 0.0
     assert 0.0 < float(alignment) <= 1.0
+
+
+def test_task_aware_neat_alpha_zero_is_exact_task_mean() -> None:
+    rows = ((torch.tensor([1.0, 0.0]),), (torch.tensor([-1.0, 1.0]),))
+    result = task_aware_neat(rows, alpha=0.0)
+    torch.testing.assert_close(result.gradients[0], mean_gradients(rows)[0])
+    assert float(result.correction_ratio) == 0.0
+
+
+def test_task_aware_neat_uses_linear_soft_projection() -> None:
+    rows = ((torch.tensor([1.0, 0.0]),), (torch.tensor([-1.0, 1.0]),))
+    result = task_aware_neat(rows, alpha=0.5)
+    torch.testing.assert_close(result.gradients[0], torch.tensor([0.125, 0.625]))
+    assert all(float(conflict) > 0.0 for conflict in result.task_conflicts)
+    assert float(result.correction_ratio) > 0.0
+
+
+def test_task_aware_neat_leaves_private_parameters_uncorrected() -> None:
+    rows = (
+        (torch.tensor([1.0]), torch.tensor([3.0])),
+        (torch.tensor([-1.0]), torch.tensor([1.0])),
+    )
+    result = task_aware_neat(rows, alpha=1.0, shared_parameters=(True, False))
+    torch.testing.assert_close(result.gradients[1], torch.tensor([2.0]))
+
+
+def test_task_aware_neat_is_order_independent_for_two_tasks() -> None:
+    rows = ((torch.tensor([1.0, 0.0]),), (torch.tensor([-1.0, 1.0]),))
+    forward = task_aware_neat(rows, alpha=0.25)
+    reverse = task_aware_neat(tuple(reversed(rows)), alpha=0.25)
+    torch.testing.assert_close(forward.gradients[0], reverse.gradients[0])
+
+
+def test_torch_lion_matches_first_published_update() -> None:
+    parameter = torch.nn.Parameter(torch.tensor([1.0, -1.0]))
+    parameter.grad = torch.tensor([2.0, -3.0])
+    optimizer = TorchLion([parameter], lr=0.1, betas=(0.9, 0.99))
+    optimizer.step()
+    torch.testing.assert_close(parameter, torch.tensor([0.9, -0.9]))
+    torch.testing.assert_close(
+        optimizer.state[parameter]["momentum"], torch.tensor([0.02, -0.03])
+    )
 
 
 def test_paired_dataset_uses_declared_fixed_overlap() -> None:

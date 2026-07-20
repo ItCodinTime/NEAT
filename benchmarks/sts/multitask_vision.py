@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from benchmarks.manifest import reproducibility_metadata, seed_libraries, write_json
-from benchmarks.sts import DATASETS, METHODS, PAPER_SEEDS
+from benchmarks.sts import ALL_METHODS, DATASETS, PAPER_SEEDS
 from benchmarks.sts.gradients import (
     assign_gradients,
     cosine_between,
@@ -39,6 +39,15 @@ NEAT_VARIANTS = (
     "lookahead",
     "gradient_centralization",
     "nesterov",
+    "lion_no_correction",
+)
+TASK_NEAT_VARIANTS = (
+    "adam_alpha_0",
+    "adam_alpha_0_25",
+    "adam_alpha_0_5",
+    "adam_alpha_1",
+    "lion_alpha_0",
+    "lion_alpha_0_25",
 )
 DATASET_SPEC_VERSION = "fixed-overlap-v1"
 
@@ -46,9 +55,13 @@ DATASET_SPEC_VERSION = "fixed-overlap-v1"
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", choices=DATASETS, default="multi_mnist")
-    parser.add_argument("--method", choices=METHODS, default="neat")
+    parser.add_argument("--method", choices=ALL_METHODS, default="neat")
     parser.add_argument("--setting", choices=SETTINGS, default="multi")
-    parser.add_argument("--neat-variant", choices=NEAT_VARIANTS, default="base")
+    parser.add_argument(
+        "--neat-variant",
+        choices=NEAT_VARIANTS + TASK_NEAT_VARIANTS,
+        default="base",
+    )
     parser.add_argument("--seed", type=int, default=PAPER_SEEDS[0])
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -246,7 +259,26 @@ def neat_overrides(variant: str, *, steps_per_epoch: int) -> dict[str, object]:
         overrides["gradient_centralization"] = True
     elif variant == "nesterov":
         overrides["nesterov"] = True
+    elif variant == "lion_no_correction":
+        overrides.update({"update_mode": "lion", "nce_mode": "off"})
     return overrides
+
+
+def task_neat_settings(variant: str) -> tuple[str, float]:
+    """Return the transport and correction strength for a v2 control."""
+
+    settings = {
+        "adam_alpha_0": ("adam", 0.0),
+        "adam_alpha_0_25": ("adam", 0.25),
+        "adam_alpha_0_5": ("adam", 0.5),
+        "adam_alpha_1": ("adam", 1.0),
+        "lion_alpha_0": ("lion", 0.0),
+        "lion_alpha_0_25": ("lion", 0.25),
+    }
+    try:
+        return settings[variant]
+    except KeyError as exc:
+        raise ValueError(f"unknown task-aware NEAT variant: {variant}") from exc
 
 
 def build_optimizer(args, model, *, steps_per_epoch: int):
@@ -265,6 +297,14 @@ def build_optimizer(args, model, *, steps_per_epoch: int):
             opponent_source=overrides.pop("opponent_source", "momentum"),
             **overrides,
         )
+    use_lion = args.method == "lion" or (
+        args.method == "task_neat"
+        and task_neat_settings(args.neat_variant)[0] == "lion"
+    )
+    if use_lion:
+        from neat_optim import TorchLion
+
+        return TorchLion(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     return torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
@@ -283,12 +323,27 @@ def active_losses(setting: str, outputs, labels):
     return losses
 
 
+def parameter_layout(model):
+    """Return ordered parameters and a mask for the shared model trunk."""
+
+    named_parameters = tuple(model.named_parameters())
+    parameters = tuple(parameter for _, parameter in named_parameters)
+    shared = tuple(
+        not name.startswith(("task_1.", "task_2.")) for name, _ in named_parameters
+    )
+    return parameters, shared
+
+
 def train_epoch(args, model, loader, optimizer, device):
+    torch = _require_torch()
     model.train()
-    parameters = tuple(model.parameters())
+    parameters, shared_parameters = parameter_layout(model)
     losses_seen = []
     correction_ratios = []
     alignments = []
+    task_conflicts = []
+    active_task_fractions = []
+    minimum_task_alignments = []
     if hasattr(optimizer, "reset_diagnostics"):
         optimizer.reset_diagnostics()
     for images, first, second in loader:
@@ -296,17 +351,37 @@ def train_epoch(args, model, loader, optimizer, device):
         labels = (first.to(device), second.to(device))
         optimizer.zero_grad(set_to_none=True)
         losses = active_losses(args.setting, model(images), labels)
-        if args.method in {"pcgrad", "mgda"}:
+        if args.method in {"pcgrad", "mgda", "task_neat"}:
             if args.setting != "multi":
                 raise ValueError(f"{args.method} requires --setting multi")
             rows = task_gradients(losses, parameters)
             raw = mean_gradients(rows)
-            combined = (
-                pcgrad_two_task(rows)
-                if args.method == "pcgrad"
-                else mgda_two_task(rows)
-            )
-            ratio, alignment = gradient_geometry(raw, combined)
+            if args.method == "task_neat":
+                from neat_optim import task_aware_neat
+
+                _, alpha = task_neat_settings(args.neat_variant)
+                transformed = task_aware_neat(
+                    rows, alpha=alpha, shared_parameters=shared_parameters
+                )
+                combined = transformed.gradients
+                ratio = transformed.correction_ratio
+                alignment = transformed.gradient_alignment
+                task_conflicts.append(
+                    float(torch.stack(transformed.task_conflicts).mean().detach())
+                )
+                active_task_fractions.append(
+                    float(transformed.active_task_fraction.detach())
+                )
+                minimum_task_alignments.append(
+                    float(transformed.minimum_task_alignment.detach())
+                )
+            else:
+                combined = (
+                    pcgrad_two_task(rows)
+                    if args.method == "pcgrad"
+                    else mgda_two_task(rows)
+                )
+                ratio, alignment = gradient_geometry(raw, combined)
             correction_ratios.append(float(ratio.detach()))
             alignments.append(float(alignment.detach()))
             assign_gradients(parameters, combined)
@@ -319,7 +394,17 @@ def train_epoch(args, model, loader, optimizer, device):
         correction_ratio = diagnostics.get("mean_correction_ratio", 0.0)
         alignment = diagnostics.get("mean_update_alignment", 1.0)
     elif correction_ratios:
-        diagnostics = {}
+        diagnostics = (
+            {
+                "mean_task_conflict": float(np.mean(task_conflicts)),
+                "active_task_fraction": float(np.mean(active_task_fractions)),
+                "minimum_task_update_alignment": float(
+                    np.mean(minimum_task_alignments)
+                ),
+            }
+            if task_conflicts
+            else {}
+        )
         correction_ratio = float(np.mean(correction_ratios))
         alignment = float(np.mean(alignments))
     else:
@@ -365,12 +450,20 @@ def evaluate(model, loader, device) -> dict[str, float]:
 
 def task_gradient_cosine(model, loader, device) -> float:
     model.train()
-    parameters = tuple(model.parameters())
+    parameters, shared_parameters = parameter_layout(model)
     images, first, second = next(iter(loader))
     images = images.to(device)
     labels = (first.to(device), second.to(device))
     rows = task_gradients(active_losses("multi", model(images), labels), parameters)
-    cosine = float(cosine_between(rows).detach())
+    shared_rows = tuple(
+        tuple(
+            value
+            for value, include in zip(row, shared_parameters, strict=True)
+            if include
+        )
+        for row in rows
+    )
+    cosine = float(cosine_between(shared_rows).detach())
     model.zero_grad(set_to_none=True)
     return cosine
 
@@ -386,7 +479,7 @@ def peak_memory_mb(device) -> float:
 
 
 def result_path(args) -> Path:
-    variant = args.neat_variant if args.method == "neat" else "base"
+    variant = args.neat_variant if args.method in {"neat", "task_neat"} else "base"
     return (
         Path(args.output_dir)
         / "runs"
@@ -401,8 +494,12 @@ def result_path(args) -> Path:
 
 def main(argv=None) -> None:
     args = parse_args(argv)
-    if args.method != "neat" and args.neat_variant != "base":
-        raise SystemExit("--neat-variant applies only to --method neat")
+    if args.method == "neat" and args.neat_variant not in NEAT_VARIANTS:
+        raise SystemExit("temporal NEAT requires a temporal --neat-variant")
+    if args.method == "task_neat" and args.neat_variant not in TASK_NEAT_VARIANTS:
+        raise SystemExit("task-aware NEAT requires a task-aware --neat-variant")
+    if args.method not in {"neat", "task_neat"} and args.neat_variant != "base":
+        raise SystemExit("--neat-variant applies only to a NEAT method")
     destination = result_path(args)
     if destination.exists() and not args.overwrite:
         print(f"complete result exists, skipping: {destination}")
@@ -434,8 +531,19 @@ def main(argv=None) -> None:
             else {
                 key: value
                 for key, value in optimizer.defaults.items()
-                if isinstance(value, (int, float, bool, str, type(None)))
+                if isinstance(value, (int, float, bool, str, tuple, type(None)))
             }
+        ),
+        "gradient_transformation": (
+            {
+                "name": "task_aware_neat",
+                "transport": task_neat_settings(args.neat_variant)[0],
+                "alpha": task_neat_settings(args.neat_variant)[1],
+                "conflict_scope": "global_shared_parameters",
+                "projection": "linear_soft_projection",
+            }
+            if args.method == "task_neat"
+            else None
         ),
     }
     write_json(destination.parent / "config.json", config)
@@ -495,8 +603,12 @@ def main(argv=None) -> None:
             "adam": "identity correction before Adam transport",
             "pcgrad": "PCGrad-combined gradient relative to raw task mean",
             "mgda": "MGDA-combined gradient relative to raw task mean",
+            "lion": "identity correction before published Lion transport",
             "neat": (
                 "Nash correction relative to the raw gradient before momentum transport"
+            ),
+            "task_neat": (
+                "global shared-task soft projection relative to the raw task mean"
             ),
         }[args.method],
         "reproducibility": provenance,
