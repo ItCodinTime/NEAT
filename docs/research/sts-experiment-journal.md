@@ -126,3 +126,8 @@ grid. Tier 1 remains blocked until `locked_lrs.json` is complete.
   at offset `4`, to `0` at offset `8`. This is preliminary mechanism evidence
   only, but it satisfies the gate that overlap must manipulate measured
   correction activity before a larger validation sweep is purchased.
+- The first three-backend Vultr smoke passed under TensorFlow and PyTorch but
+  exposed a JAX tracer leak caused by stateful diagnostic assignments inside
+  `ops.cond`. Replaced the conditional side effect with a branchless scalar
+  sampling mask; optimizer updates remain unchanged and diagnostic counts retain
+  the configured interval semantics.
