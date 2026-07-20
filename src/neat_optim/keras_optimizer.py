@@ -415,38 +415,36 @@ class NEAT(keras.optimizers.Optimizer):
         learning_rate,
     ) -> None:
         """Sample diagnostic-only reductions without changing update math."""
-        should_record = ops.equal(ops.mod(self.iterations, self.diagnostic_interval), 0)
-
-        def record():
-            correction_norm = self._l2_norm(raw_correction)
-            grad_norm = self._l2_norm(gradient)
-            correction_ratio = correction_norm / (grad_norm + self.eps)
-            update_alignment = self._cosine_similarity(gradient, corrected_gradient)
-            opponent_norm = self._l2_norm(opponent)
-            step_norm = self._l2_norm(step_update)
-            effective_step_size = self._l2_norm(learning_rate * step_update) / (
-                grad_norm + self.eps
-            )
-            correction_active = ops.cast(correction_norm > self.eps, "float32")
-            values = (
-                (self.diagnostic_conflict_sum, conflict_ratio),
-                (self.diagnostic_correction_ratio_sum, correction_ratio),
-                (self.diagnostic_update_alignment_sum, update_alignment),
-                (self.diagnostic_opponent_norm_sum, opponent_norm),
-                (self.diagnostic_correction_active_sum, correction_active),
-                (self.diagnostic_effective_alpha_sum, ops.mean(effective_alpha)),
-                (self.diagnostic_gradient_noise_sum, current_noise),
-                (self.diagnostic_gradient_norm_sum, grad_norm),
-                (self.diagnostic_correction_norm_sum, correction_norm),
-                (self.diagnostic_step_norm_sum, step_norm),
-                (self.diagnostic_effective_step_size_sum, effective_step_size),
-            )
-            for accumulator, value in values:
-                self.assign_add(accumulator, ops.cast(value, "float32"))
-            self.assign_add(self.diagnostic_count, ops.cast(1.0, "float32"))
-            return ops.cast(0, "int32")
-
-        ops.cond(should_record, record, lambda: ops.cast(0, "int32"))
+        sample = ops.cast(
+            ops.equal(ops.mod(self.iterations, self.diagnostic_interval), 0),
+            "float32",
+        )
+        correction_norm = self._l2_norm(raw_correction)
+        grad_norm = self._l2_norm(gradient)
+        correction_ratio = correction_norm / (grad_norm + self.eps)
+        update_alignment = self._cosine_similarity(gradient, corrected_gradient)
+        opponent_norm = self._l2_norm(opponent)
+        step_norm = self._l2_norm(step_update)
+        effective_step_size = self._l2_norm(learning_rate * step_update) / (
+            grad_norm + self.eps
+        )
+        correction_active = ops.cast(correction_norm > self.eps, "float32")
+        values = (
+            (self.diagnostic_conflict_sum, conflict_ratio),
+            (self.diagnostic_correction_ratio_sum, correction_ratio),
+            (self.diagnostic_update_alignment_sum, update_alignment),
+            (self.diagnostic_opponent_norm_sum, opponent_norm),
+            (self.diagnostic_correction_active_sum, correction_active),
+            (self.diagnostic_effective_alpha_sum, ops.mean(effective_alpha)),
+            (self.diagnostic_gradient_noise_sum, current_noise),
+            (self.diagnostic_gradient_norm_sum, grad_norm),
+            (self.diagnostic_correction_norm_sum, correction_norm),
+            (self.diagnostic_step_norm_sum, step_norm),
+            (self.diagnostic_effective_step_size_sum, effective_step_size),
+        )
+        for accumulator, value in values:
+            self.assign_add(accumulator, ops.cast(value, "float32") * sample)
+        self.assign_add(self.diagnostic_count, sample)
 
     def update_step(self, gradient, variable, learning_rate) -> None:
         """Apply one Keras update while mirroring the reference step order."""
