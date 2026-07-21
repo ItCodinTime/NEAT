@@ -131,3 +131,24 @@ grid. Tier 1 remains blocked until `locked_lrs.json` is complete.
   `ops.cond`. Replaced the conditional side effect with a branchless scalar
   sampling mask; optimizer updates remain unchanged and diagnostic counts retain
   the configured interval semantics.
+
+### Conflict-severity sweep outcome
+
+- Ran all 36 declared validation-only cells at git revision `b81bb81`: two
+  datasets, overlap offsets `0`, `4`, and `8`, paired seeds `101`, `103`, and
+  `107`, and task-aware alpha `0` versus `0.5`. Every result retained a null test
+  field and the pipeline exited `0`.
+- Full overlap produced the largest mean correction ratios, approximately
+  `0.0900` on Multi-MNIST and `0.0838` on Multi-Fashion-MNIST. This confirms the
+  overlap intervention materially changed mechanism activity.
+- Mean paired validation gains at offsets `0`, `4`, and `8` were respectively
+  `-0.00028`, `+0.00080`, and `-0.00003` on Multi-MNIST, and `-0.00023`,
+  `-0.00118`, and `-0.00172` on Multi-Fashion-MNIST.
+- The only positive cell mean, Multi-MNIST at offset `4`, did not transfer to
+  Multi-Fashion-MNIST and was small relative to its paired-seed standard
+  deviation (`0.00173`). The sweep therefore supplies no evidence that stronger
+  conflict correction improves validation performance in this benchmark family.
+- Synced all raw results, environment provenance, trial CSV, summary JSON, and
+  response plot locally. Vultr pending charges rose from USD `14.06` to USD
+  `15.21`. Deleted the worker and verified the instance endpoint returned HTTP
+  `404`.
