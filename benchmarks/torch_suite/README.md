@@ -7,6 +7,22 @@ task-gradient synthetic category where their input contract applies.
 Every run writes a self-contained `result.json` manifest that includes the full config,
 per-epoch metrics, wall-time, environment metadata, and NEAT diagnostic snapshots.
 
+For a headline CIFAR result, use the validation-locked runner rather than a
+shared-learning-rate command. It tunes every comparator on a held-out training
+slice, writes the selected settings before test evaluation, and then runs the
+test seeds with frozen settings:
+
+```bash
+python -m benchmarks.torch_suite.locked_study \
+    --study cifar10-resnet18 \
+    --output-dir benchmark-runs/cifar10-locked \
+    --parallelism 1
+```
+
+The protocol and pre-registered CPU settings are documented in
+`docs/research/validation-locked-benchmark-protocol.md` and
+`benchmarks/configs/validation_locked_cifar_cpu.yaml`.
+
 ---
 
 ## Quick start
@@ -19,10 +35,10 @@ pip install -e ".[benchmarks]"
 python -m benchmarks.torch_suite.vision \
     --dataset cifar10 --model resnet18 --optimizer neat --epochs 100
 
-# five-seed, dataset-free end-to-end smoke test of every baseline
+# five-seed, dataset-free core smoke test of every baseline
 python -m benchmarks.torch_suite.compare_all --quick
 
-# full suite (long — use a GPU server)
+# full suite, including dataset-backed categories (long — use a GPU server)
 python -m benchmarks.torch_suite.compare_all
 ```
 

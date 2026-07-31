@@ -32,6 +32,12 @@ def parse_args(argv=None):
     parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--diffusion-steps", type=int, default=1000)
     parser.add_argument("--target-loss", type=float, default=None)
+    parser.add_argument(
+        "--evaluation-seed",
+        type=int,
+        default=None,
+        help="Base seed for fixed validation noise and timesteps.",
+    )
     add_seed_arguments(parser)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--device", default="auto")
@@ -82,15 +88,22 @@ def diffusion_loss(model, scheduler, images, device):
     return torch.nn.functional.mse_loss(prediction, noise)
 
 
-def evaluate(model, scheduler, loader, device) -> float:
+def evaluate(model, scheduler, loader, device, evaluation_seed: int) -> float:
     """Average validation noise MSE with gradients disabled."""
     model.eval()
     losses = []
     torch = require_torch()
-    with torch.inference_mode():
-        for images, _ in loader:
-            loss = diffusion_loss(model, scheduler, images.to(device), device)
-            losses.append(float(loss))
+    devices = [device] if device.type == "cuda" else []
+    # Evaluation must not consume training RNG state.  The same optimizer/seed
+    # pair therefore sees exactly the same validation noise at every epoch.
+    with torch.random.fork_rng(devices=devices):
+        torch.manual_seed(evaluation_seed)
+        if device.type == "cuda":
+            torch.cuda.manual_seed_all(evaluation_seed)
+        with torch.inference_mode():
+            for images, _ in loader:
+                loss = diffusion_loss(model, scheduler, images.to(device), device)
+                losses.append(float(loss))
     return float(np.mean(losses))
 
 
@@ -105,6 +118,8 @@ def main(argv=None):
     except ImportError as exc:
         raise SystemExit("Install diffusers for the diffusion suite.") from exc
     seed_everything(args.seed)
+    if args.evaluation_seed is None:
+        args.evaluation_seed = args.seed
     device = select_device(args.device)
     train_loader, valid_loader = make_data(args)
     model = UNet2DModel(
@@ -143,7 +158,9 @@ def main(argv=None):
             scaler.step(optimizer)
             scaler.update()
             losses.append(float(loss.detach()))
-        validation_loss = evaluate(model, scheduler, valid_loader, device)
+        validation_loss = evaluate(
+            model, scheduler, valid_loader, device, args.evaluation_seed + epoch
+        )
         logger.log(
             EpochMetrics(
                 epoch,

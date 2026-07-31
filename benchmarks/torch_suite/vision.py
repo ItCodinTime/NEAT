@@ -41,6 +41,45 @@ def parse_args(argv=None):
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=5e-4)
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.0,
+        help="Reserve this fraction of the training set for validation tuning.",
+    )
+    parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=20260731,
+        help="Seed used only for the deterministic train/validation split.",
+    )
+    parser.add_argument(
+        "--evaluation-split",
+        choices=("validation", "test"),
+        default="test",
+        help="Metric split used for the per-epoch curve.",
+    )
+    parser.add_argument(
+        "--record-test-metric",
+        action="store_true",
+        help="Record a final test metric when curves use validation.",
+    )
+    parser.add_argument(
+        "--tuning-status",
+        choices=("untuned_shared", "validation_search", "validation_selected"),
+        default="untuned_shared",
+        help="Protocol label persisted into the result manifest.",
+    )
+    parser.add_argument(
+        "--study-id",
+        default=None,
+        help="Identifier linking a trial to its locked-study manifest.",
+    )
+    parser.add_argument(
+        "--selection-manifest",
+        default=None,
+        help="Tuning manifest used to select this trial's locked settings.",
+    )
     add_seed_arguments(parser)
     parser.add_argument("--target-accuracy", type=float, default=None)
     parser.add_argument("--device", default="auto")
@@ -76,6 +115,10 @@ def make_data(args):
     )
     # CIFAR is downloaded through torchvision. ImageNet-style experiments use
     # ImageFolder so licensed datasets never need repository-specific code.
+    if not 0.0 <= args.validation_fraction < 1.0:
+        raise ValueError("--validation-fraction must be in [0, 1)")
+    if args.evaluation_split == "validation" and not args.validation_fraction:
+        raise ValueError("--evaluation-split validation requires --validation-fraction")
     if args.dataset.startswith("cifar"):
         dataset_type = (
             datasets.CIFAR10 if args.dataset == "cifar10" else datasets.CIFAR100
@@ -83,20 +126,45 @@ def make_data(args):
         train = dataset_type(
             args.data_dir, train=True, download=True, transform=train_transform
         )
-        valid = dataset_type(
+        test = dataset_type(
             args.data_dir, train=False, download=True, transform=eval_transform
         )
+        if args.validation_fraction:
+            evaluation_copy = dataset_type(
+                args.data_dir, train=True, download=True, transform=eval_transform
+            )
+            generator = np.random.default_rng(args.split_seed)
+            indices = generator.permutation(len(train))
+            validation_count = round(len(indices) * args.validation_fraction)
+            validation_indices = indices[:validation_count].tolist()
+            train_indices = indices[validation_count:].tolist()
+            train = torch.utils.data.Subset(train, train_indices)
+            validation = torch.utils.data.Subset(evaluation_copy, validation_indices)
+        else:
+            validation = None
     else:
         train = datasets.ImageFolder(f"{args.data_dir}/train", train_transform)
-        valid = datasets.ImageFolder(f"{args.data_dir}/val", eval_transform)
+        test = datasets.ImageFolder(f"{args.data_dir}/val", eval_transform)
+        validation = None
     loader_args = dict(
         batch_size=args.batch_size, num_workers=args.workers, pin_memory=True
     )
-    return (
-        torch.utils.data.DataLoader(train, shuffle=True, **loader_args),
-        torch.utils.data.DataLoader(valid, shuffle=False, **loader_args),
-        len(train.classes),
-    )
+    evaluation = validation if args.evaluation_split == "validation" else test
+    return {
+        "train": torch.utils.data.DataLoader(train, shuffle=True, **loader_args),
+        "evaluation": torch.utils.data.DataLoader(
+            evaluation, shuffle=False, **loader_args
+        ),
+        "test": torch.utils.data.DataLoader(test, shuffle=False, **loader_args),
+        "classes": len(
+            train.dataset.classes
+            if isinstance(train, torch.utils.data.Subset)
+            else train.classes
+        ),
+        "train_examples": len(train),
+        "validation_examples": len(validation) if validation is not None else 0,
+        "test_examples": len(test),
+    }
 
 
 def make_model(name: str, classes: int, image_size: int):
@@ -144,9 +212,9 @@ def main(argv=None):
     torch = require_torch()
     seed_everything(args.seed)
     device = select_device(args.device)
-    train_loader, valid_loader, classes = make_data(args)
+    data = make_data(args)
     image_size = 224 if args.dataset == "imagefolder" else 32
-    model = make_model(args.model, classes, image_size).to(device)
+    model = make_model(args.model, data["classes"], image_size).to(device)
     optimizer = build_optimizer(
         args.optimizer, model.parameters(), args.lr, args.weight_decay
     )
@@ -164,7 +232,7 @@ def main(argv=None):
         started = time.perf_counter()
         model.train()
         losses = []
-        for images, labels in train_loader:
+        for images, labels in data["train"]:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(
@@ -176,7 +244,7 @@ def main(argv=None):
             scaler.step(optimizer)
             scaler.update()
             losses.append(float(loss.detach()))
-        accuracy = evaluate(model, valid_loader, device)
+        accuracy = evaluate(model, data["evaluation"], device)
         logger.log(
             EpochMetrics(
                 epoch,
@@ -188,12 +256,21 @@ def main(argv=None):
             )
         )
         scheduler.step()
+    extra = {
+        "metric": "top1_accuracy",
+        "evaluation_split": args.evaluation_split,
+        "train_examples": data["train_examples"],
+        "validation_examples": data["validation_examples"],
+        "test_examples": data["test_examples"],
+    }
+    if args.record_test_metric and args.evaluation_split != "test":
+        extra["final_test_accuracy"] = evaluate(model, data["test"], device)
     logger.finish(
         device=device,
         target=args.target_accuracy,
         higher_is_better=True,
         optimizer=optimizer,
-        extra={"metric": "top1_accuracy"},
+        extra=extra,
     )
 
 
