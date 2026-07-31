@@ -181,7 +181,9 @@ The full specification — including invariant proofs and a worked numerical exa
 
 - Native C++ extension is CPU-only — no GPU kernel yet
 - Player-aware mode requires TensorFlow as the Keras backend
-- Benchmarks are on the sklearn digits dataset only — not ImageNet-scale
+- Published evidence currently consists of small Keras studies plus preliminary
+  CPU PyTorch studies; no GPU-scale ImageNet, full foundation-model, or
+  production RL claim is made
 
 ---
 

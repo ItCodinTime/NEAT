@@ -40,6 +40,11 @@ Every benchmark report should include:
   `mean_effective_alpha`, and `mean_gradient_noise`
 - raw logs in TensorBoard or Weights & Biases
 
+For CIFAR studies that will be used as headline evidence, use the
+[validation-locked protocol](validation-locked-benchmark-protocol.md). The
+historical shared-learning-rate suite remains useful for smoke and exploratory
+work, but it is not a fair tuned comparison.
+
 ## Target Suites
 
 The executable implementations and exact starter commands live in the

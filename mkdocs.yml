@@ -19,12 +19,15 @@ nav:
       - Algorithm: research/algorithm.md
       - Player-Aware Mode: research/player-aware.md
       - Benchmarks: research/benchmarks.md
+      - Validation-locked protocol: research/validation-locked-benchmark-protocol.md
+      - Final Vultr validation suite: research/vultr-final-validation-suite-2026-07-31.md
       - Benchmark Plan: research/benchmark-plan.md
       - Regeneron STS Protocol: research/regeneron-sts-protocol.md
       - Task-aware NEAT v2: research/task-aware-neat-v2.md
       - Diagnostics and Evidence Roadmap: research/diagnostics-and-evidence-roadmap.md
       - Regeneron STS Journal: research/sts-experiment-journal.md
       - CIFAR-10 ResNet-18 MPS Study: research/cifar10-resnet18-mps-2026-06-29.md
+      - Benchmark Run Status 2026-07-28: research/benchmark-run-status-2026-07-28.md
   - Contributing:
       - Development: contributing/development.md
       - Architecture: contributing/architecture.md

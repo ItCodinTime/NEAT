@@ -216,10 +216,10 @@ Quick start:
 ```bash
 pip install -e ".[benchmarks]"
 
-# Smoke-test all categories (~5 min)
+# Dataset-free core smoke gates (~5 min)
 python -m benchmarks.torch_suite.compare_all --quick
 
-# Full head-to-head suite
+# Full head-to-head suite, including dataset-backed categories
 python -m benchmarks.torch_suite.compare_all --output-dir benchmark-runs/full-suite
 ```
 
@@ -237,3 +237,6 @@ Reproducible YAML presets are in `benchmarks/configs/`:
 ### Completed research reports
 
 - [CIFAR-10 ResNet-18 MPS study, 2026-06-29](cifar10-resnet18-mps-2026-06-29.md)
+- [Benchmark run status and server sweep queue, 2026-07-28](benchmark-run-status-2026-07-28.md)
+- [Validation-locked CIFAR protocol](validation-locked-benchmark-protocol.md)
+- [Pre-registered final Vultr validation queue, 2026-07-31](vultr-final-validation-suite-2026-07-31.md)
