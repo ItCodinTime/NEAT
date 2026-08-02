@@ -50,6 +50,8 @@ work, but it is not a fair tuned comparison.
 The executable implementations and exact starter commands live in the
 repository at `benchmarks/torch_suite/README.md`. See the
 [benchmark results page](benchmarks.md) for the documented suite overview.
+The [industry benchmark matrix](industry-benchmark-matrix.md) records which
+standard categories are implemented, pending, or blocked by compute capacity.
 
 ### Vision
 

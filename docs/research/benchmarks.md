@@ -241,3 +241,4 @@ Reproducible YAML presets are in `benchmarks/configs/`:
 - [Validation-locked CIFAR protocol](validation-locked-benchmark-protocol.md)
 - [Pre-registered final Vultr validation queue, 2026-07-31](vultr-final-validation-suite-2026-07-31.md)
 - [Live Vultr locked-run ledger, 2026-08-02](vultr-locked-run-ledger-2026-08-02.md)
+- [Industry benchmark matrix](industry-benchmark-matrix.md)
