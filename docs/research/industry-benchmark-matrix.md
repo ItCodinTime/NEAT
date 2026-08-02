@@ -62,11 +62,14 @@ Every future category must record the following before results are promoted:
 
 The active Vultr account has prepaid credit but rejects additional deployment
 with a monthly-fee-limit error; Cloud GPU provisioning also requires provider
-approval. The two accepted four-core CPU workers are therefore reserved for
-the already-running validation-locked CIFAR-10 comparison. Replacing that
-workload with tiny one-seed stand-ins for ImageNet, full GLUE, pretraining,
-Atari, MT50, or Llama/Mistral would not satisfy this matrix and would reduce
-the quality of the only headline-grade run in progress.
+approval. On 2026-08-02, the unrelated `Cluster Node` and
+`qrouter-worker-20260731` instances were paused at the user's direction, but
+their provisioned plans still count toward this quota. The two accepted
+four-core CPU workers are therefore reserved for the already-running
+validation-locked CIFAR-10 comparison. Replacing that workload with tiny
+one-seed stand-ins for ImageNet, full GLUE, pretraining, Atari, MT50, or
+Llama/Mistral would not satisfy this matrix and would reduce the quality of the
+only headline-grade run in progress.
 
 The program is now fully specified and documented, but only artifacts that
 meet the acceptance requirements may be described as benchmark results.

@@ -81,10 +81,14 @@ separate from the available credit. GPU creation remains subject to a support
 approval requirement.
 
 The run therefore uses the two newly-created benchmark workers already
-accepted by the provider. Existing instances named `Cluster Node` and
-`qrouter-worker-20260731` are outside this suite and are not repurposed.
-The watchdog limit is USD `120` pending charges and it copies artifacts before
-deleting a completed or timed-out worker.
+accepted by the provider. At `2026-08-02 12:20 CDT`, the user directed that
+the unrelated `Cluster Node` and `qrouter-worker-20260731` instances be put on
+hold. Their `power_status` is now `stopped`; neither was repurposed or deleted.
+A fresh six-core NEAT worker request was retried after the pause and received
+the same monthly-fee-limit rejection. Vultr therefore counts these provisioned
+but stopped plans toward the deployment quota. The watchdog limit is USD `120`
+pending charges and it copies artifacts before deleting a completed or
+timed-out worker.
 
 ## Reporting rules for the deadline handoff
 
