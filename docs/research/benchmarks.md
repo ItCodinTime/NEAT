@@ -240,3 +240,4 @@ Reproducible YAML presets are in `benchmarks/configs/`:
 - [Benchmark run status and server sweep queue, 2026-07-28](benchmark-run-status-2026-07-28.md)
 - [Validation-locked CIFAR protocol](validation-locked-benchmark-protocol.md)
 - [Pre-registered final Vultr validation queue, 2026-07-31](vultr-final-validation-suite-2026-07-31.md)
+- [Live Vultr locked-run ledger, 2026-08-02](vultr-locked-run-ledger-2026-08-02.md)
