@@ -124,15 +124,22 @@ stress evidence on CPU-only infrastructure.
 
 After consolidation, two NEAT-labelled workers are actively computing: one
 four-core general compute worker and one eight-core high-performance worker.
-An additional two-core high-performance worker was accepted by the Vultr create
-API at `14:45 CDT`, but remained pending with `0.0.0.0` and no routable SSH IP
-at `14:50 CDT`; it is therefore bonus capacity only until activation completes.
+Two extra small workers were accepted by the Vultr create API, but both entered
+`active`/`stopped`/`locked` states and failed explicit start requests with
+provider-side HTTP 500 responses:
+
+| Instance | Plan | Observed state |
+|---|---|---|
+| `cfbf10fe-2cf6-46ef-bf97-259913043dee` | `vhp-2c-4gb-intel` | Accepted at `14:45 CDT`; locked with no usable SSH path |
+| `c2f497a0-8754-487d-b9e3-d15e9132a454` | `vc2-2c-4gb` | Accepted at `15:15 CDT`; locked/stopped immediately after IP assignment |
+
 Larger 8-core and 12-core follow-on create attempts were blocked by the
-monthly-fee quota or Vultr backend plan errors. Two unrelated instances were
-first snapshotted and then destroyed at the user's direction; their snapshots
-and recovery commands are stored in a private local recovery note outside this
-repository. The provider's monthly-fee quota and GPU-approval requirement
-prevented any accepted GPU deployment.
+monthly-fee quota or Vultr backend plan errors. Extra worker creation is
+therefore paused until the provider unlocks or releases those instances. Two
+unrelated instances were first snapshotted and then destroyed at the user's
+direction; their snapshots and recovery commands are stored in a private local
+recovery note outside this repository. The provider's monthly-fee quota and
+GPU-approval requirement prevented any accepted GPU deployment.
 
 ## Remaining work
 
