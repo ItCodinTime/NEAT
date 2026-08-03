@@ -2,7 +2,7 @@
 
 This handoff records the state of the Vultr validation window at
 `2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT`, `14:50 CDT`,
-`15:28 CDT`, and `16:21 CDT`. It separates complete evidence, partial locked-study
+`15:28 CDT`, `16:21 CDT`, and `16:41 CDT`. It separates complete evidence, partial locked-study
 evidence, and work that remains queued. Raw manifests and live JSONL metrics
 are synchronized under the ignored `benchmarks/vultr_sync/` directory.
 
@@ -34,7 +34,7 @@ Held-out test evidence at the checkpoint is partial:
 |---|---|---|
 | NEAT | 7, 11, 19, 23, 29 | 0.8249, 0.8211, 0.8213, 0.8189, 0.8195 |
 | AdamW | 7, 11, 19 | 0.8191, 0.8197, 0.8172 |
-| SGD | 7, 11, 19 | 0.8528, 0.8557, 0.8540 |
+| SGD | 7, 11, 19, 23, 29 | 0.8528, 0.8557, 0.8540, 0.8557, 0.8567 |
 | Lion | none | pending |
 
 Seed 7 for AdamW was duplicated across two workers during recovery sharding.
@@ -51,6 +51,13 @@ AdamW seeds 23 and 29 around epoch `55`, and SGD seeds 23 and 29 around epochs
 are around epoch `32`; Lion seeds 19, 23, and 29 are queued on the
 high-performance worker after the AdamW/SGD recovery finishes. These are live
 progress metrics only, not completed held-out manifests.
+
+At the `16:41 CDT` update, SGD seeds 23 and 29 completed with test Top-1
+`0.8557` and `0.8567`. SGD is now complete for all five held-out seeds with
+mean test Top-1 `0.85498`. NEAT remains complete at mean `0.82114`; AdamW and
+Lion remain partial. This reinforces that, under the frozen CIFAR-10 ResNet-18
+protocol, SGD is the clear winner and NEAT should not be claimed as the vision
+leader.
 
 ## CIFAR-100 ResNet-34 locked study
 
