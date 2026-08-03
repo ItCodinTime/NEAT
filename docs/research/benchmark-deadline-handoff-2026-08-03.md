@@ -1,9 +1,10 @@
 # Benchmark deadline handoff - 2026-08-03
 
 This handoff records the state of the Vultr validation window at
-`2026-08-03 11:01 CDT`. It separates complete evidence, partial locked-study
-evidence, and work that remains queued. Raw manifests are synchronized under
-the ignored `benchmarks/vultr_sync/` directory.
+`2026-08-03 11:01 CDT`, with an extension update at `11:15 CDT`. It separates
+complete evidence, partial locked-study evidence, and work that remains
+queued. Raw manifests are synchronized under the ignored
+`benchmarks/vultr_sync/` directory.
 
 ## Quality gates
 
@@ -57,12 +58,42 @@ tuning observations only. They are not test-set evidence.
 
 ## Multi-task and control evidence
 
-The deterministic 64-dimensional synthetic conflict suite completed five
-seeds for NEAT and PCGrad at 1,000 steps. The CAGrad run stopped because the
-worker lacked SciPy; this dependency failure is retained in the log and the
-remaining CAGrad and SGD cells are pending rerun. This category remains
-separate from vision claims. The full MuJoCo queue did not start before the
-deadline; earlier quick MuJoCo results remain documented as preliminary only.
+The deterministic 64-dimensional synthetic conflict suite is now complete
+for NEAT, PCGrad, CAGrad, and SGD: five seeds per optimizer, 1,000 steps,
+dimension 64, conflict intensity `0.75`, and noise `0.1`. The outcome is
+distance to the known optimum; lower is better.
+
+| Optimizer | Seeds | Mean final distance | Range |
+|---|---:|---:|---:|
+| SGD | 5 | 0.03872 | 0.03251 to 0.04553 |
+| NEAT | 5 | 0.04307 | 0.03625 to 0.05019 |
+| CAGrad | 5 | 0.31807 | 0.31498 to 0.32018 |
+| PCGrad | 5 | 1.10532 | 1.09653 to 1.11619 |
+
+The initial CAGrad dependency failure is retained in the worker log. After
+installing its declared SciPy extra, the missing CAGrad and SGD cells were
+rerun with the original fixed configuration. NEAT is substantially better
+than PCGrad and CAGrad in this controlled task, but SGD is better than NEAT;
+this result must not be represented as general multi-task superiority.
+
+The full HalfCheetah-v5 queue has started with five seeds per optimizer,
+50,000 environment steps, 5,000-step evaluation cadence, and five evaluation
+episodes. No completed RL seed is available at this update. This category
+remains separate from vision claims.
+
+## Extension execution notes
+
+The original CIFAR-10 `all` process was confirmed stalled: it had no active
+child computation and no new artifacts for nearly three days. It was stopped
+and its worker reassigned to the missing Lion held-out cells. The replacement
+uses the same frozen Lion learning rate, test split, selection manifest,
+seeds, and thread budget as the locked study.
+
+This recovery also identified that evaluation resumption replayed completed
+trial directories. Commit `fa3f33a` makes resumption idempotent by skipping a
+trial only when its directory contains exactly one completed artifact; the
+behavior is unit tested. Existing artifacts retain the original protocol
+revision recorded above.
 
 ## Capacity record
 
