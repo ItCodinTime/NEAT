@@ -2,7 +2,7 @@
 
 This handoff records the state of the Vultr validation window at
 `2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT`, `14:50 CDT`,
-`15:28 CDT`, `16:21 CDT`, and `16:41 CDT`. It separates complete evidence, partial locked-study
+`15:28 CDT`, `16:21 CDT`, `16:41 CDT`, and `18:46 CDT`. It separates complete evidence, partial locked-study
 evidence, and work that remains queued. Raw manifests and live JSONL metrics
 are synchronized under the ignored `benchmarks/vultr_sync/` directory.
 
@@ -33,7 +33,7 @@ Held-out test evidence at the checkpoint is partial:
 | Optimizer | Completed unique seeds | Test Top-1 values |
 |---|---|---|
 | NEAT | 7, 11, 19, 23, 29 | 0.8249, 0.8211, 0.8213, 0.8189, 0.8195 |
-| AdamW | 7, 11, 19 | 0.8191, 0.8197, 0.8172 |
+| AdamW | 7, 11, 19, 23, 29 | 0.8191, 0.8197, 0.8172, 0.8222, 0.8204 |
 | SGD | 7, 11, 19, 23, 29 | 0.8528, 0.8557, 0.8540, 0.8557, 0.8567 |
 | Lion | none | pending |
 
@@ -58,6 +58,12 @@ mean test Top-1 `0.85498`. NEAT remains complete at mean `0.82114`; AdamW and
 Lion remain partial. This reinforces that, under the frozen CIFAR-10 ResNet-18
 protocol, SGD is the clear winner and NEAT should not be claimed as the vision
 leader.
+
+At the `17:19 CDT` update, AdamW seeds 23 and 29 completed with test Top-1
+`0.8222` and `0.8204`. AdamW is now complete for all five held-out seeds with
+mean test Top-1 `0.81972`. The completed CIFAR-10 comparison for the three
+available optimizers is therefore SGD `0.85498`, NEAT `0.82114`, and AdamW
+`0.81972`. Lion remains the only missing optimizer in the held-out matrix.
 
 ## CIFAR-100 ResNet-34 locked study
 
@@ -126,7 +132,7 @@ entitlement check failed:
 | Proxy | Scope | Status at 16:21 CDT |
 |---|---|---|
 | SST-2 | DistilBERT, 2,048 training examples, 500 eval examples, seed 7, NEAT vs AdamW | Complete; NEAT `0.872`, AdamW `0.872` |
-| Alpaca | TinyLlama 1.1B Chat, LoRA, 64 training examples, 16 eval examples, seed 7, NEAT vs AdamW | Prioritized on the high-performance worker immediately after CIFAR-10 AdamW/SGD recovery |
+| Alpaca | TinyLlama 1.1B Chat, LoRA, 64 training examples, 16 eval examples, seed 7, NEAT vs AdamW | Running on the high-performance worker after fixing a `torchvision`/Llama import conflict |
 | HalfCheetah | 20,000-step CPU MuJoCo proxy, seed 7, NEAT vs AdamW | Complete; NEAT best `-27.6415`, AdamW best `-63.5017` |
 
 These proxies are not substitutes for full GLUE, full instruction tuning,
@@ -137,6 +143,13 @@ At `16:21 CDT`, the high-performance worker queue was changed to skip completed
 SST-2 and HalfCheetah duplicates. It now runs TinyLlama LoRA first after the
 active CIFAR-10 AdamW/SGD recovery, then Lion seeds 19, 23, and 29, then the
 CIFAR-100 NEAT held-out seeds if time remains.
+
+The first TinyLlama launch failed because `transformers` imported
+`torchvision`, which raised a CPU-wheel `torchvision::nms` registration error
+while loading `LlamaConfig`. Since CIFAR-10 AdamW/SGD had completed and no HPC
+vision process was active, `torchvision` was temporarily removed for the Llama
+proxy and is reinstalled by the queue before Lion and CIFAR-100 vision resume.
+The corrected TinyLlama NEAT run was active at `18:46 CDT`.
 
 ## Capacity record
 
