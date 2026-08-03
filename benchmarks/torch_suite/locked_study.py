@@ -81,6 +81,11 @@ def _read_result(directory: Path) -> dict[str, Any]:
     return json.loads(results[0].read_text(encoding="utf-8"))
 
 
+def _has_completed_result(directory: Path) -> bool:
+    """Return whether a trial directory already contains exactly one artifact."""
+    return len(list(directory.rglob("result.json"))) == 1
+
+
 def _run_many(
     commands: list[tuple[list[str], Path]],
     args: argparse.Namespace,
@@ -251,6 +256,8 @@ def evaluate(
         learning_rate = float(selected[optimizer]["config"]["lr"])
         for seed in args.seeds:
             run_dir = root / "evaluation" / optimizer / f"seed-{seed}"
+            if _has_completed_result(run_dir):
+                continue
             commands.append(
                 (
                     _vision_command(
