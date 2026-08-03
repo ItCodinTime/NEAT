@@ -1,10 +1,10 @@
 # Benchmark deadline handoff - 2026-08-03
 
 This handoff records the state of the Vultr validation window at
-`2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT` and
-`14:50 CDT`. It separates complete evidence, partial locked-study evidence,
-and work that remains queued. Raw manifests and live JSONL metrics are
-synchronized under the ignored `benchmarks/vultr_sync/` directory.
+`2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT`, `14:50 CDT`,
+and `15:28 CDT`. It separates complete evidence, partial locked-study
+evidence, and work that remains queued. Raw manifests and live JSONL metrics
+are synchronized under the ignored `benchmarks/vultr_sync/` directory.
 
 ## Quality gates
 
@@ -87,11 +87,12 @@ than PCGrad and CAGrad in this controlled task, but SGD is better than NEAT;
 this result must not be represented as general multi-task superiority.
 
 The earlier full HalfCheetah-v5 queue did not produce a completed manifest
-before worker consolidation. A smaller CPU proxy is queued on the
-high-performance worker after the CIFAR-10 Lion recovery: HalfCheetah-v5,
-20,000 environment steps, 5,000-step evaluation cadence, five evaluation
-episodes, seed 7, NEAT versus AdamW. It is a preliminary CPU proxy and remains
-separate from vision claims.
+before worker consolidation. A smaller CPU proxy is now running on the extra
+two-core worker: HalfCheetah-v5, 20,000 environment steps, 5,000-step
+evaluation cadence, five evaluation episodes, seed 7, NEAT versus AdamW. At
+`15:28 CDT`, the first NEAT checkpoint was written with mean reward `-27.6415`.
+This is a preliminary CPU proxy and remains separate from vision claims until
+the AdamW comparator and final manifests complete.
 
 ## Extension execution notes
 
@@ -110,11 +111,11 @@ revision recorded above.
 The deadline queue also includes two additional CPU proxies requested after the
 GPU entitlement check failed:
 
-| Proxy | Scope | Status at 14:50 CDT |
+| Proxy | Scope | Status at 15:28 CDT |
 |---|---|---|
-| SST-2 | DistilBERT, 2,048 training examples, 500 eval examples, seed 7, NEAT vs AdamW | Queued after CIFAR-10 Lion on the high-performance worker |
+| SST-2 | DistilBERT, 2,048 training examples, 500 eval examples, seed 7, NEAT vs AdamW | Running on the four-core CPU worker alongside Lion |
 | Alpaca | TinyLlama 1.1B Chat, LoRA, 64 training examples, 16 eval examples, seed 7, NEAT vs AdamW | Queued after SST-2 on the high-performance worker |
-| HalfCheetah | 20,000-step CPU MuJoCo proxy, seed 7, NEAT vs AdamW | Queued after Alpaca on the high-performance worker |
+| HalfCheetah | 20,000-step CPU MuJoCo proxy, seed 7, NEAT vs AdamW | Running on the extra two-core worker; first NEAT checkpoint written |
 
 These proxies are not substitutes for full GLUE, full instruction tuning,
 Atari, or a multi-seed MuJoCo matrix. They exist to produce deadline-limited
@@ -122,24 +123,26 @@ stress evidence on CPU-only infrastructure.
 
 ## Capacity record
 
-After consolidation, two NEAT-labelled workers are actively computing: one
-four-core general compute worker and one eight-core high-performance worker.
-Two extra small workers were accepted by the Vultr create API, but both entered
-`active`/`stopped`/`locked` states and failed explicit start requests with
-provider-side HTTP 500 responses:
+After consolidation and follow-on provisioning, three NEAT-labelled workers are
+actively computing: one four-core general compute worker, one eight-core
+high-performance worker, and one extra two-core general compute worker. One
+additional two-core high-performance worker was accepted by the Vultr create
+API, but entered an `active`/`stopped`/`locked` state and failed an explicit
+start request with a provider-side HTTP 500 response:
 
 | Instance | Plan | Observed state |
 |---|---|---|
 | `cfbf10fe-2cf6-46ef-bf97-259913043dee` | `vhp-2c-4gb-intel` | Accepted at `14:45 CDT`; locked with no usable SSH path |
-| `c2f497a0-8754-487d-b9e3-d15e9132a454` | `vc2-2c-4gb` | Accepted at `15:15 CDT`; locked/stopped immediately after IP assignment |
+| `c2f497a0-8754-487d-b9e3-d15e9132a454` | `vc2-2c-4gb` | Accepted at `15:15 CDT`; recovered to `running ok` and assigned to the HalfCheetah proxy |
 
 Larger 8-core and 12-core follow-on create attempts were blocked by the
-monthly-fee quota or Vultr backend plan errors. Extra worker creation is
-therefore paused until the provider unlocks or releases those instances. Two
-unrelated instances were first snapshotted and then destroyed at the user's
-direction; their snapshots and recovery commands are stored in a private local
-recovery note outside this repository. The provider's monthly-fee quota and
-GPU-approval requirement prevented any accepted GPU deployment.
+monthly-fee quota or Vultr backend plan errors. Further extra worker creation
+is therefore paused unless the provider unlocks or releases the remaining stuck
+instance. Two unrelated instances were first snapshotted and then destroyed at
+the user's direction; their snapshots and recovery commands are stored in a
+private local recovery note outside this repository. The provider's
+monthly-fee quota and GPU-approval requirement prevented any accepted GPU
+deployment.
 
 ## Remaining work
 
