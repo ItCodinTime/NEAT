@@ -1,18 +1,20 @@
 # Benchmark deadline handoff - 2026-08-03
 
 This handoff records the state of the Vultr validation window at
-`2026-08-03 11:01 CDT`, with an extension update at `11:15 CDT`. It separates
-complete evidence, partial locked-study evidence, and work that remains
-queued. Raw manifests are synchronized under the ignored
-`benchmarks/vultr_sync/` directory.
+`2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT` and
+`14:50 CDT`. It separates complete evidence, partial locked-study evidence,
+and work that remains queued. Raw manifests and live JSONL metrics are
+synchronized under the ignored `benchmarks/vultr_sync/` directory.
 
 ## Quality gates
 
-The source revision for the validation protocol is
-`55c3df515e30c32fd70ae2c139c8243593d20464`. Before the run, local checks
-passed: Ruff, `110` tests with three expected TensorFlow skips, and the strict
-MkDocs build. The validation-locked mechanism, its manifest tests, and the
-protocol are documented in the [locked-study protocol](validation-locked-benchmark-protocol.md).
+The source revision for the original validation protocol is
+`55c3df515e30c32fd70ae2c139c8243593d20464`. The current repository revision
+for deadline execution is `812e78d`, which includes the idempotent locked-study
+resume fix. Before the run, local checks passed: Ruff, `111` tests with three
+expected TensorFlow skips, and the strict MkDocs build. The validation-locked
+mechanism, its manifest tests, and the protocol are documented in the
+[locked-study protocol](validation-locked-benchmark-protocol.md).
 
 ## CIFAR-10 ResNet-18 locked study
 
@@ -41,6 +43,14 @@ independent seed. The matrix is therefore not complete and must not receive a
 strict paper aggregate or a headline optimizer ranking. It does show that the
 NEAT test runs are stable in the `0.819` to `0.825` range under the frozen
 recipe; it does not establish comparative superiority.
+
+At the `14:50 CDT` update, the remaining AdamW and SGD CIFAR-10 jobs are
+running on the eight-core high-performance worker. The live JSONL metrics show
+AdamW seeds 23 and 29 around epoch `55`, and SGD seeds 23 and 29 around epochs
+`63` to `64`. Lion seeds 7 and 11 are running on the four-core CPU worker and
+are around epoch `32`; Lion seeds 19, 23, and 29 are queued on the
+high-performance worker after the AdamW/SGD recovery finishes. These are live
+progress metrics only, not completed held-out manifests.
 
 ## CIFAR-100 ResNet-34 locked study
 
@@ -76,10 +86,12 @@ rerun with the original fixed configuration. NEAT is substantially better
 than PCGrad and CAGrad in this controlled task, but SGD is better than NEAT;
 this result must not be represented as general multi-task superiority.
 
-The full HalfCheetah-v5 queue has started with five seeds per optimizer,
-50,000 environment steps, 5,000-step evaluation cadence, and five evaluation
-episodes. No completed RL seed is available at this update. This category
-remains separate from vision claims.
+The earlier full HalfCheetah-v5 queue did not produce a completed manifest
+before worker consolidation. A smaller CPU proxy is queued on the
+high-performance worker after the CIFAR-10 Lion recovery: HalfCheetah-v5,
+20,000 environment steps, 5,000-step evaluation cadence, five evaluation
+episodes, seed 7, NEAT versus AdamW. It is a preliminary CPU proxy and remains
+separate from vision claims.
 
 ## Extension execution notes
 
@@ -95,23 +107,40 @@ trial only when its directory contains exactly one completed artifact; the
 behavior is unit tested. Existing artifacts retain the original protocol
 revision recorded above.
 
+The deadline queue also includes two additional CPU proxies requested after the
+GPU entitlement check failed:
+
+| Proxy | Scope | Status at 14:50 CDT |
+|---|---|---|
+| SST-2 | DistilBERT, 2,048 training examples, 500 eval examples, seed 7, NEAT vs AdamW | Queued after CIFAR-10 Lion on the high-performance worker |
+| Alpaca | TinyLlama 1.1B Chat, LoRA, 64 training examples, 16 eval examples, seed 7, NEAT vs AdamW | Queued after SST-2 on the high-performance worker |
+| HalfCheetah | 20,000-step CPU MuJoCo proxy, seed 7, NEAT vs AdamW | Queued after Alpaca on the high-performance worker |
+
+These proxies are not substitutes for full GLUE, full instruction tuning,
+Atari, or a multi-seed MuJoCo matrix. They exist to produce deadline-limited
+stress evidence on CPU-only infrastructure.
+
 ## Capacity record
 
-Four NEAT-labelled Vultr CPU workers were active at the checkpoint: three
-four-core workers and one two-core worker. Two unrelated instances were first
-snapshotted and then destroyed at the user's direction; their snapshots and
-recovery commands are stored in a private local recovery note outside this
-repository. The account reported USD `13.86` pending charges at the checkpoint.
-The provider's monthly-fee quota and GPU-approval requirement prevented any
-additional GPU or higher-capacity deployment.
+After consolidation, two NEAT-labelled workers are actively computing: one
+four-core general compute worker and one eight-core high-performance worker.
+An additional two-core high-performance worker was accepted by the Vultr create
+API at `14:45 CDT`, but remained pending with `0.0.0.0` and no routable SSH IP
+at `14:50 CDT`; it is therefore bonus capacity only until activation completes.
+Larger 8-core and 12-core follow-on create attempts were blocked by the
+monthly-fee quota or Vultr backend plan errors. Two unrelated instances were
+first snapshotted and then destroyed at the user's direction; their snapshots
+and recovery commands are stored in a private local recovery note outside this
+repository. The provider's monthly-fee quota and GPU-approval requirement
+prevented any accepted GPU deployment.
 
 ## Remaining work
 
 1. Finish the CIFAR-10 held-out matrix: AdamW seeds 23 and 29, SGD seeds 23
    and 29, and all five Lion seeds.
 2. Run five held-out CIFAR-100 seeds for every frozen optimizer setting.
-3. Finish the CAGrad and SGD synthetic cells, then run the full multi-seed
-   MuJoCo matrix.
+3. Execute and label the queued CPU proxies for SST-2, TinyLlama LoRA, and
+   HalfCheetah-v5.
 4. Add and execute the acceptance-gated GPU protocols in the
    [industry benchmark matrix](industry-benchmark-matrix.md): ImageNet-1K,
    full GLUE, language-model pretraining, Atari, real multi-task datasets, and
