@@ -2,7 +2,7 @@
 
 This handoff records the state of the Vultr validation window at
 `2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT`, `14:50 CDT`,
-`15:28 CDT`, `16:21 CDT`, `16:41 CDT`, and `18:46 CDT`. It separates complete evidence, partial locked-study
+`15:28 CDT`, `16:21 CDT`, `16:41 CDT`, `18:46 CDT`, and `21:06 CDT`. It separates complete evidence, partial locked-study
 evidence, and work that remains queued. Raw manifests and live JSONL metrics
 are synchronized under the ignored `benchmarks/vultr_sync/` directory.
 
@@ -64,6 +64,11 @@ At the `17:19 CDT` update, AdamW seeds 23 and 29 completed with test Top-1
 mean test Top-1 `0.81972`. The completed CIFAR-10 comparison for the three
 available optimizers is therefore SGD `0.85498`, NEAT `0.82114`, and AdamW
 `0.81972`. Lion remains the only missing optimizer in the held-out matrix.
+
+At the `21:06 CDT` deadline status, Lion seeds 7 and 11 were still running on
+the four-core CPU worker at epoch `88` with best live metrics `0.8283` and
+`0.8269`; no Lion held-out manifest had completed yet. Lion seeds 19, 23, and
+29 remain queued behind the TinyLlama proxy on the high-performance worker.
 
 ## CIFAR-100 ResNet-34 locked study
 
@@ -150,6 +155,11 @@ while loading `LlamaConfig`. Since CIFAR-10 AdamW/SGD had completed and no HPC
 vision process was active, `torchvision` was temporarily removed for the Llama
 proxy and is reinstalled by the queue before Lion and CIFAR-100 vision resume.
 The corrected TinyLlama NEAT run was active at `18:46 CDT`.
+
+At the `21:06 CDT` deadline status, both TinyLlama LoRA processes were still
+active with no completed manifest: NEAT had been running for about `2h20m`,
+and a parallel AdamW comparator for about `1h43m`. They were CPU-bound with
+stable memory use, so they were left running rather than interrupted.
 
 ## Capacity record
 
