@@ -2,9 +2,11 @@
 
 This handoff records the state of the Vultr validation window at
 `2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT`, `14:50 CDT`,
-`15:28 CDT`, `16:21 CDT`, `16:41 CDT`, `18:46 CDT`, and `21:06 CDT`. It separates complete evidence, partial locked-study
-evidence, and work that remains queued. Raw manifests and live JSONL metrics
-are synchronized under the ignored `benchmarks/vultr_sync/` directory.
+`15:28 CDT`, `16:21 CDT`, `16:41 CDT`, `18:46 CDT`, `21:06 CDT`, and
+`2026-08-04 13:36 CDT`. It separates complete evidence, partial locked-study
+evidence, CPU-only mimic evidence, and work that remains queued. Raw Vultr
+manifests and live JSONL metrics are synchronized under the ignored
+`benchmarks/vultr_sync/` directory.
 
 ## Quality gates
 
@@ -70,6 +72,15 @@ the four-core CPU worker at epoch `88` with best live metrics `0.8283` and
 `0.8269`; no Lion held-out manifest had completed yet. Lion seeds 19, 23, and
 29 remain queued behind the TinyLlama proxy on the high-performance worker.
 
+At the `2026-08-04 13:36 CDT` update, Lion seeds 7, 11, 19, and 23 had
+completed with test Top-1 `0.8270`, `0.8285`, `0.8218`, and `0.8260`.
+Lion seed 29 was still active on both the four-core and high-performance
+workers as a deadline recovery duplicate; the high-performance copy was at
+epoch `89` with live test Top-1 `0.8305`. The completed Lion mean is therefore
+`0.82583` over four seeds only. The completed CIFAR-10 ranking remains SGD
+first; Lion is likely second, NEAT narrowly exceeds AdamW, and NEAT is not the
+vision leader under this protocol.
+
 ## CIFAR-100 ResNet-34 locked study
 
 All 16 equal-budget validation trials completed. The selected settings are:
@@ -83,6 +94,12 @@ All 16 equal-budget validation trials completed. The selected settings are:
 
 No CIFAR-100 held-out test run had completed at the checkpoint, so these are
 tuning observations only. They are not test-set evidence.
+
+At the `2026-08-04 13:36 CDT` update, CIFAR-100 NEAT held-out seeds 7, 11, and
+19 were active on the high-performance worker. Live epoch-10 test Top-1 values
+were `0.4595`, `0.4433`, and `0.4402`; these are progress metrics only, not
+completed manifests. Seeds 23 and 29 remain queued behind the first three NEAT
+held-out seeds.
 
 ## Multi-task and control evidence
 
@@ -104,6 +121,16 @@ rerun with the original fixed configuration. NEAT is substantially better
 than PCGrad and CAGrad in this controlled task, but SGD is better than NEAT;
 this result must not be represented as general multi-task superiority.
 
+An additional local Mac mini CPU sweep completed on `2026-08-04`: conflict
+intensities `0.25`, `0.5`, `0.75`, and `0.9`; noise levels `0.0`, `0.1`, and
+`0.2`; optimizers NEAT, SGD, PCGrad, and CAGrad; seeds 7, 11, and 19; 1,000
+steps and dimension 64. This produced `144` result manifests. SGD had the best
+mean final distance in all 12 conflict/noise cells. NEAT was consistently close
+to SGD and generally far better than PCGrad and CAGrad in noisy high-conflict
+settings, but the broader sweep reinforces the same claim boundary: NEAT has a
+controlled conflict-handling advantage over PCGrad/CAGrad in this testbed, not
+a win over plain SGD.
+
 The earlier full HalfCheetah-v5 queue did not produce a completed manifest
 before worker consolidation. A smaller CPU proxy completed on the extra
 two-core worker: HalfCheetah-v5, 20,000 environment steps, 5,000-step
@@ -116,6 +143,20 @@ Higher mean episode reward is better.
 | AdamW | -63.5017 | -63.5017 | preliminary CPU proxy |
 
 This is single-seed deadline evidence, not a multi-seed MuJoCo matrix.
+
+Additional 20,000-step HalfCheetah-v5 CPU proxy seeds completed after the
+original checkpoint:
+
+| Seed | NEAT final/best reward | AdamW final/best reward | Read |
+|---:|---:|---:|---|
+| 7 | -217.2492 / -27.6415 | -63.5017 / -63.5017 | Mixed; NEAT best checkpoint higher, AdamW final higher |
+| 11 | 46.6699 / 46.6699 | 40.1066 / 40.1066 | NEAT slightly higher |
+| 19 | 62.0183 / 62.0183 | pending in synchronized docs at this checkpoint | Incomplete pair |
+| 23 | -17.8536 / -17.8536 | 114.6506 / 114.6506 | AdamW higher |
+
+Seeds 29 and 31 for both NEAT and AdamW were launched on the extra two-core
+worker at `2026-08-04 13:33 CDT`. They are deadline CPU proxies and remain
+preliminary until the manifests complete and are synchronized.
 
 ## Extension execution notes
 
@@ -161,6 +202,27 @@ active with no completed manifest: NEAT had been running for about `2h20m`,
 and a parallel AdamW comparator for about `1h43m`. They were CPU-bound with
 stable memory use, so they were left running rather than interrupted.
 
+At the `2026-08-04 13:36 CDT` update, the TinyLlama LoRA proxy had completed:
+NEAT validation perplexity `7.8410`, AdamW validation perplexity `7.8253`
+where lower is better. AdamW is slightly better on this small CPU
+instruction-tuning proxy. The result is useful as a deadline smoke test, but
+the sample is too small to support a Llama/Mistral instruction-tuning claim.
+
+The local Mac mini also completed an STS-style CPU mimic matrix:
+Multi-MNIST and Multi-Fashion-MNIST, two seeds, five epochs, 5,000 train
+examples, 1,000 validation examples, Adam, NEAT, PCGrad, and MGDA. Mean
+validation average accuracy was:
+
+| Dataset | Adam | NEAT | PCGrad | MGDA |
+|---|---:|---:|---:|---:|
+| Multi-MNIST | 0.7958 | 0.0908 | 0.8000 | 0.7830 |
+| Multi-Fashion-MNIST | 0.6365 | 0.0978 | 0.6363 | 0.6307 |
+
+This is intentionally labeled as an untuned CPU mimic. It does not show NEAT
+strength; it shows that the current STS runner plus shared quick learning rate
+is a poor expression of NEAT and needs a validation-tuned NEAT setting before
+being used for any positive multi-task claim.
+
 ## Capacity record
 
 After consolidation and follow-on provisioning, three NEAT-labelled workers are
@@ -184,17 +246,27 @@ private local recovery note outside this repository. The provider's
 monthly-fee quota and GPU-approval requirement prevented any accepted GPU
 deployment.
 
+The active Vultr serverless inference endpoint is not part of the optimizer
+benchmark execution. These benchmark runs use CPU SSH workers and local CPU
+execution; serverless inference can be terminated if it is unrelated to NEAT.
+
 ## Remaining work
 
-1. Finish the CIFAR-10 held-out matrix: AdamW seeds 23 and 29, SGD seeds 23
-   and 29, and all five Lion seeds.
-2. Run five held-out CIFAR-100 seeds for every frozen optimizer setting.
-3. Execute and label the queued CPU proxies for SST-2, TinyLlama LoRA, and
-   HalfCheetah-v5.
+1. Finish the CIFAR-10 held-out matrix: Lion seed 29 is the last missing
+   completed unique seed.
+2. Finish the active CIFAR-100 NEAT held-out seeds, then run held-out
+   CIFAR-100 seeds for AdamW, SGD, and Lion if CPU time remains.
+3. Finish and synchronize the active HalfCheetah-v5 CPU proxy seeds 29 and 31.
 4. Add and execute the acceptance-gated GPU protocols in the
    [industry benchmark matrix](industry-benchmark-matrix.md): ImageNet-1K,
    full GLUE, language-model pretraining, Atari, real multi-task datasets, and
    Llama/Mistral instruction tuning.
 
 No result beyond the explicitly listed completed cells should be described as
-finished or industry-scale evidence.
+finished or industry-scale evidence. As of the `2026-08-04 13:36 CDT` update,
+NEAT has credible narrow evidence for controlled synthetic conflict handling
+versus PCGrad/CAGrad, is roughly competitive with AdamW on CIFAR-10 but far
+behind SGD, slightly loses the TinyLlama and SST-2 CPU proxies to AdamW or ties,
+and has mixed preliminary HalfCheetah CPU evidence. It has not demonstrated an
+industry-scale win on ImageNet-1K, full GLUE, language-model pretraining,
+Atari, NYUv2/MT50, or Llama/Mistral instruction tuning.
