@@ -3,10 +3,10 @@
 This handoff records the state of the Vultr validation window at
 `2026-08-03 11:01 CDT`, with extension updates at `11:15 CDT`, `14:50 CDT`,
 `15:28 CDT`, `16:21 CDT`, `16:41 CDT`, `18:46 CDT`, `21:06 CDT`, and
-`2026-08-04 13:36 CDT`. It separates complete evidence, partial locked-study
-evidence, CPU-only mimic evidence, and work that remains queued. Raw Vultr
-manifests and live JSONL metrics are synchronized under the ignored
-`benchmarks/vultr_sync/` directory.
+`2026-08-04 13:36 CDT` and `14:21 CDT`. It separates complete evidence,
+partial locked-study evidence, CPU-only mimic evidence, and work that remains
+queued. Raw Vultr manifests and live JSONL metrics are synchronized under the
+ignored `benchmarks/vultr_sync/` directory.
 
 ## Quality gates
 
@@ -81,6 +81,20 @@ epoch `89` with live test Top-1 `0.8305`. The completed Lion mean is therefore
 first; Lion is likely second, NEAT narrowly exceeds AdamW, and NEAT is not the
 vision leader under this protocol.
 
+At the `14:21 CDT` update, Lion seed 29 completed with test Top-1 `0.8313`.
+The full five-seed CIFAR-10 held-out matrix is now complete:
+
+| Optimizer | Mean test Top-1 | Seeds |
+|---|---:|---|
+| SGD | 0.85498 | 7, 11, 19, 23, 29 |
+| Lion | 0.82692 | 7, 11, 19, 23, 29 |
+| NEAT | 0.82114 | 7, 11, 19, 23, 29 |
+| AdamW | 0.81972 | 7, 11, 19, 23, 29 |
+
+This is a clean negative result for any claim that NEAT is the best CIFAR-10
+optimizer under the locked ResNet-18 protocol. NEAT narrowly beats AdamW, but
+SGD is the clear winner and Lion also beats NEAT.
+
 ## CIFAR-100 ResNet-34 locked study
 
 All 16 equal-budget validation trials completed. The selected settings are:
@@ -100,6 +114,13 @@ At the `2026-08-04 13:36 CDT` update, CIFAR-100 NEAT held-out seeds 7, 11, and
 were `0.4595`, `0.4433`, and `0.4402`; these are progress metrics only, not
 completed manifests. Seeds 23 and 29 remain queued behind the first three NEAT
 held-out seeds.
+
+At `14:21 CDT`, those NEAT runs were still active at epoch 17 with live Top-1
+`0.4691`, `0.4616`, and `0.4648`. A local Mac mini MPS AdamW seed-7 run was
+also launched with the frozen AdamW CIFAR-100 LR. It completed 100 epochs with
+final test Top-1 `0.5134` and best-epoch Top-1 `0.5135`. The local run is
+useful comparator evidence but is marked separately because it uses Apple MPS
+rather than the Vultr CPU environment.
 
 ## Multi-task and control evidence
 
@@ -157,6 +178,13 @@ original checkpoint:
 Seeds 29 and 31 for both NEAT and AdamW were launched on the extra two-core
 worker at `2026-08-04 13:33 CDT`. They are deadline CPU proxies and remain
 preliminary until the manifests complete and are synchronized.
+
+At `14:21 CDT`, the seed 29 and 31 HalfCheetah-v5 proxy manifests had
+completed and were synchronized. Across the expanded synchronized seed set,
+using final reward, NEAT wins seeds 11 and 19 while AdamW wins seeds 7, 23,
+29, and 31. Using best checkpoint reward, the read is closer to split: NEAT
+wins seeds 7, 11, and 19; AdamW wins seeds 23, 29, and 31. The larger CPU RL
+proxy is therefore mixed and does not establish an RL advantage for NEAT.
 
 ## Extension execution notes
 
@@ -223,6 +251,18 @@ strength; it shows that the current STS runner plus shared quick learning rate
 is a poor expression of NEAT and needs a validation-tuned NEAT setting before
 being used for any positive multi-task claim.
 
+A follow-up local NEAT-only STS learning-rate sweep tested `0.01`, `0.003`,
+`0.001`, `0.0003`, and `0.0001` for both Multi-MNIST and Multi-Fashion-MNIST
+with 10 epochs, 10,000 training examples, and 2,000 validation examples. The
+best final validation average accuracy remained near chance: `0.1040` on
+Multi-MNIST and `0.1090` on Multi-Fashion-MNIST. This suggests the STS failure
+is not fixed by this simple LR sweep.
+
+A larger local SST-2 DistilBERT 10,000-example CPU run was attempted, but it
+was stopped before the first epoch metric because it slowed the higher-value
+local CIFAR-100 MPS run substantially. No SST-2 result is recorded from that
+attempt.
+
 ## Capacity record
 
 After consolidation and follow-on provisioning, three NEAT-labelled workers are
@@ -252,12 +292,9 @@ execution; serverless inference can be terminated if it is unrelated to NEAT.
 
 ## Remaining work
 
-1. Finish the CIFAR-10 held-out matrix: Lion seed 29 is the last missing
-   completed unique seed.
-2. Finish the active CIFAR-100 NEAT held-out seeds, then run held-out
+1. Finish the active CIFAR-100 NEAT held-out seeds, then run held-out
    CIFAR-100 seeds for AdamW, SGD, and Lion if CPU time remains.
-3. Finish and synchronize the active HalfCheetah-v5 CPU proxy seeds 29 and 31.
-4. Add and execute the acceptance-gated GPU protocols in the
+2. Add and execute the acceptance-gated GPU protocols in the
    [industry benchmark matrix](industry-benchmark-matrix.md): ImageNet-1K,
    full GLUE, language-model pretraining, Atari, real multi-task datasets, and
    Llama/Mistral instruction tuning.
