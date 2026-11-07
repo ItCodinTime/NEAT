@@ -2,240 +2,202 @@
 
 # NEAT
 
-> **Name note:** NEAT in this repository means Nash-Equilibrium Adaptive
-> Training. It is unrelated to NeuroEvolution of Augmenting Topologies (NEAT;
-> Stanley and Miikkulainen, 2002).
+### Conflict-aware optimization for Keras.
 
-### Nash-Equilibrium Adaptive Training
-
-NEAT, short for Nash-Equilibrium Adaptive Training, is a Keras-first optimizer
-library for conflict-aware neural network optimization. It keeps the optimizer
-math explicit and testable in a NumPy reference engine, while exposing a small
-public API for real model training and an optional native CPU acceleration
-path.
-
-*A conflict-aware Keras optimizer with a versioned NumPy core*
+**Nash-Equilibrium Adaptive Training.** NEAT is a drop-in Keras 3 optimizer. It detects
+when gradients fight each other and applies a bounded correction before each step.
+It runs on TensorFlow, JAX and PyTorch.
 
 <br>
 
 [![CI](https://github.com/ItCodinTime/NEAT/actions/workflows/ci.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/ci.yml)
 [![Keras Integration](https://github.com/ItCodinTime/NEAT/actions/workflows/keras-integration.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/keras-integration.yml)
+[![Keras 3](https://img.shields.io/badge/Keras-3-D00000?logo=keras&logoColor=white)](#keras-3-every-backend)
+[![Backends](https://img.shields.io/badge/backends-TensorFlow%20|%20JAX%20|%20PyTorch-555)](#keras-3-every-backend)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0.dev0-orange)](CHANGELOG.md)
 
-<br>
-
-```
-pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow
-```
+[**Documentation**][docs] · [Installation][docs-install] · [Keras guide][docs-keras] · [API][docs-api] · [Benchmarks][docs-benchmarks]
 
 </div>
-
----
-
-NEAT detects when the current gradient **conflicts** with the optimizer's
-opponent signal and reduces the conflicting component before updating. The
-correction is gated on a measured conflict ratio and clipped relative to the
-gradient norm.
-
-- opponent source selection: `momentum`, `previous_gradient`, or `gradient_ema`
-- correction warmup via `correction_warmup_steps`
-- conflict gating via `conflict_threshold`
-- adaptive alpha via `adaptive_alpha`
-- diagonal second-moment preconditioning via `adaptive_preconditioning`
-- Lion-style sign updates via `update_mode="lion"`
-- gradient centralization via `gradient_centralization`
-- Nesterov-style momentum via `nesterov`
-- Lookahead slow-weight synchronization via `lookahead_k`
-- per-run optimizer diagnostics via `diagnostic_snapshot()`
-  or epoch-level TensorBoard logging with `NEATDiagnosticsCallback`
-
-The update math lives in a versioned NumPy reference engine, fully independent of Keras. The Keras optimizer is a thin adapter on top. An optional C++ CPU extension drops in behind the same semantics.
-
-- Public training API: Keras optimizer subclass
-- Reference core: NumPy
-- Native acceleration: optional CPU-only C++ extension
-- Tested platforms: Linux and macOS
-- Supported Python versions: 3.10 to 3.13
-- Supported Keras setup: install `keras` plus a backend runtime such as
-  TensorFlow. The optimizer is written against Keras 3 APIs; TensorFlow is the
-  currently exercised integration backend in this repo.
-- Optional PyTorch adapter: `neat_optim.TorchNEAT`, used by the modern
-  reproducible benchmark suite.
-
-The v3 engineering work is additive. `nce_spec_v2` remains the default and its
-behavior is frozen; v3 research options are not promoted without an explicit
-author decision and full cross-engine parity coverage.
-
-To select the additive specification, pass `spec_version="nce_spec_v3"`.
-Default-off v3 controls cover parameter-local conflict granularity, an L2
-trust-region correction bound, scheduled momentum/gradient-EMA opponent
-ensembles, correction/preconditioner composition order, and deterministic
-reference reductions. Existing constructors that omit `spec_version` continue
-to use v2 behavior.
-
-For large PyTorch models, `TorchNEAT(..., diagnostic_interval=10)` samples
-diagnostics every ten steps. This reduces accelerator synchronization cost and
-does not alter optimizer updates.
-
-## Modern Benchmarks
-
-The repository includes runnable comparisons for CIFAR-10/100 and ImageNet
-folders with ResNet/ViT/DeiT, GLUE SST-2 and Alpaca small-LLM fine-tuning,
-MuJoCo control, MNIST diffusion, and large-batch stability. Each run records
-convergence, loss variance, wall time, environment metadata, and optimizer
-diagnostics. See [the benchmark guide](benchmarks/torch_suite/README.md).
-The dataset-free `python -m benchmarks.torch_suite.compare_all --quick` gate
-runs five seeds across NEAT, AdamW, SGD momentum, Lion, PCGrad, and CAGrad in
-their applicable synthetic settings.
-
-## What's in 0.1.0.dev0
-
-> **Pre-release.** Everything listed here is in the current development version (`0.1.0.dev0`); there is no tagged release yet. The public API is intentionally narrow — these are the pieces that have been validated end-to-end.
-
-### Core algorithm
-
-The NEAT update rule (`nce_spec_v1`) introduces a **Nash Conflict Elimination (NCE)** correction term:
-
-```
-conflict  =  relu( −cos(g, o) )          # positive only when gradient opposes momentum
-proj      =  proj_o(g)                   # project gradient onto the opponent direction
-nce       =  −α · conflict · proj        # subtract the conflicting component
-u         =  g + nce                     # corrected gradient
-m         =  β·m_prev + (1−β)·u          # standard momentum
-θ_next    =  (1 − lr·wd)·θ  −  lr·m     # decoupled weight decay (default)
-```
-
-The correction is clipped: `‖nce‖ ≤ nce_clip_ratio · ‖g‖`. If there is no conflict, `nce = 0` and NEAT degrades to standard momentum SGD.
-
-The full specification — including invariant proofs and a worked numerical example — is in [`docs/research/math-spec.md`](docs/research/math-spec.md).
-
-### Shipped in this release
-
-| Component | Description |
-|---|---|
-| `NEAT` Keras optimizer | Drop-in `model.compile()` optimizer, fully serializable via `get_config()` |
-| NumPy reference engine | Canonical implementation used for correctness validation and framework-free use |
-| Functional API | `neat_step(param, grad, state, config)` — works without Keras or TensorFlow |
-| Player-aware mode | Treats each per-example gradient as a separate player in a custom TF training loop |
-| Native CPU extension | Optional C++ extension (pybind11) with automatic fallback to the reference engine |
-| Model compaction | `compact_dense_model()` and `search_compact_dense_model()` for sparse model search |
-| Diagnostics API | `diagnostic_snapshot()` to measure correction activity during and after training |
-
-### Configurable in this release
-
-<details>
-<summary><strong>Opponent signal</strong> — what counts as the conflict opponent</summary>
-
-| Value | Behaviour |
-|---|---|
-| `"momentum"` (default) | Uses the accumulated momentum vector |
-| `"gradient_ema"` | Uses an exponential moving average of raw gradients |
-| `"previous_gradient"` | Uses the previous raw gradient |
-| `"blended"` | Weighted mix of momentum and gradient EMA |
-
-</details>
-
-<details>
-<summary><strong>Correction controls</strong> — when and how much to correct</summary>
-
-| Parameter | Default | Effect |
-|---|---|---|
-| `alpha` | `0.25` | Correction strength — `0` disables correction entirely |
-| `nce_clip_ratio` | `1.0` | Max correction size as fraction of gradient norm |
-| `correction_warmup_steps` | `0` | Steps before correction activates |
-| `conflict_threshold` | `0.0` | Minimum conflict ratio to apply any correction |
-| `nce_mode` | `"projection"` | `"projection"`, `"cosine"`, or `"off"` |
-
-</details>
-
-<details>
-<summary><strong>Adaptive features</strong> — optional scaling and preconditioning</summary>
-
-| Parameter | Default | Effect |
-|---|---|---|
-| `adaptive_correction` | `False` | Scale correction by opponent reliability and conflict EMA |
-| `adaptive_correction_decay` | `0.9` | EMA decay for adaptive correction |
-| `adaptive_correction_min_scale` | `1.0` | Lower clamp on adaptive scale |
-| `adaptive_correction_max_scale` | `3.0` | Upper clamp on adaptive scale |
-| `adaptive_preconditioning` | `False` | Adam-style second-moment preconditioner |
-| `second_moment_beta` | `0.999` | Decay for second-moment EMA |
-| `bias_correction` | `False` | Bias-correct momentum and second moment |
-
-</details>
-
-<details>
-<summary><strong>Sparsity and weight decay</strong></summary>
-
-| Parameter | Default | Effect |
-|---|---|---|
-| `weight_decay` | `0.0` | L2 weight decay coefficient |
-| `decouple_weight_decay` | `True` | Apply decay before the gradient step (AdamW-style) |
-| `sparsity_l1` | `0.0` | Soft L1 shrinkage after each step |
-| `prune_threshold` | `0.0` | Hard-zero weights below this magnitude |
-
-</details>
-
-### Known limitations in 0.1.0.dev0
-
-- Native C++ extension is CPU-only — no GPU kernel yet
-- Player-aware mode requires TensorFlow as the Keras backend
-- Published evidence currently consists of small Keras studies plus preliminary
-  CPU PyTorch studies; no GPU-scale ImageNet, full foundation-model, or
-  production RL claim is made
-
----
-
-## Installation
-
-> **Not on PyPI yet.** Install from GitHub as shown below. pip builds the native C++
-> extension during install, so you need a C++ compiler (`xcode-select --install` on
-> macOS, `build-essential` on Debian/Ubuntu).
-
-**With TensorFlow** (Linux / macOS):
-```bash
-pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow
-```
-
-**With PyTorch** (any platform, including Apple Silicon):
-```bash
-pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch
-```
-
-**With JAX**:
-```bash
-pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" jax
-```
-
-**NumPy core only** (no framework required):
-```bash
-pip install "neat-optim @ git+https://github.com/ItCodinTime/NEAT.git"
-```
-
-**Local development**:
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,keras]" && pip install tensorflow
-```
-
----
-
-## Quick Start
-
-### Standard Keras training
 
 ```python
 import keras
 from neat_optim import NEAT
 
-model = keras.Sequential(
-    [
-        keras.layers.Input((32,)),
-        keras.layers.Dense(64, activation="relu"),
-        keras.layers.Dense(10),
-    ]
+optimizer = NEAT(
+    learning_rate=1e-3,
+    alpha=0.25,
+    nce_mode="projection",
+    opponent_source="gradient_ema",
 )
+
+model.compile(
+    optimizer=optimizer,
+    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    metrics=["accuracy"],
+)
+model.fit(x_train, y_train, epochs=5)
+
+print(optimizer.diagnostic_snapshot())
+```
+
+> [!NOTE]
+> **Name note:** NEAT here means *Nash-Equilibrium Adaptive Training*. It is unrelated to
+> NeuroEvolution of Augmenting Topologies (Stanley and Miikkulainen, 2002). It is also not
+> neural architecture search, and not a full game-theory solver.
+
+---
+
+## Contents
+
+- [Why NEAT](#why-neat)
+- [Keras 3, every backend](#keras-3-every-backend)
+- [Built for the Google DeepMind stack](#built-for-the-google-deepmind-stack)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Choose a mode](#choose-a-mode)
+- [How it works](#how-it-works)
+- [Configuration](#configuration)
+- [Benchmarks](#benchmarks)
+- [Public API](#public-api)
+- [Status and limitations](#status-and-limitations)
+- [Development](#development)
+- [Documentation](#documentation)
+
+---
+
+## Why NEAT
+
+Standard optimizers apply every gradient as-is, even when the current gradient points against
+the direction training has been moving. NEAT measures that **directional conflict** between the
+gradient and an *opponent* signal (momentum, a gradient EMA, or the previous gradient). When it
+finds conflict, it removes the conflicting component before the momentum update. The correction is:
+
+- **gated**: no conflict means no correction, and NEAT behaves like momentum SGD
+- **bounded**: clipped to `nce_clip_ratio · ‖g‖`, so it can never dominate the step
+- **observable**: every run reports how often and how strongly the correction fired
+
+The update math lives in a **versioned NumPy reference engine**, fully independent of Keras.
+The Keras optimizer is a thin adapter on top of it, and an optional C++ CPU extension drops in
+behind the same semantics. Parity tests keep all three in agreement.
+
+| | |
+|---|---|
+| **Keras drop-in** | Pass `NEAT` to `model.compile(...)`. Serializable via `get_config()`. |
+| **Reference engine** | Deterministic NumPy `neat_step(...)` for debugging and framework-free validation. |
+| **Player-aware mode** | Treat each example, task, or objective head as its own gradient contributor. |
+| **Diagnostics** | `diagnostic_snapshot()` and `NEATDiagnosticsCallback` (Keras `History` + TensorBoard). |
+| **PyTorch adapter** | `neat_optim.TorchNEAT` (install the `[torch]` extra) for the modern PyTorch benchmark suite. |
+
+---
+
+## Keras 3, every backend
+
+NEAT is written against Keras 3 optimizer APIs, so the same `model.compile(optimizer=NEAT(...))`
+code runs on any Keras backend. Pick one with `KERAS_BACKEND`:
+
+| Backend | Install | Status |
+|---|---|---|
+| **TensorFlow** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow` | Exercised in CI (Keras integration workflow) |
+| **JAX** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" "jax[cpu]"` | Smoke-tested locally: `fit()` + diagnostics callback |
+| **PyTorch** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch` | Smoke-tested locally: `fit()` + diagnostics callback |
+
+```bash
+KERAS_BACKEND=jax python train.py
+```
+
+> Player-aware training (`player_train_step`) uses `tf.GradientTape`, so it requires the
+> TensorFlow backend.
+
+The Keras integration goes beyond `compile()`:
+
+- **Callbacks**: `NEATDiagnosticsCallback` adds `neat_*` metrics to `History`, writes TensorBoard
+  scalars, and can export a JSON or HTML training report.
+- **Custom loops**: `optimizer.apply_gradients(...)` works inside `tf.function` training steps.
+- **Serialization**: full `get_config()` round-trip, so compiled models save and load normally.
+
+---
+
+## Built for the Google DeepMind stack
+
+NEAT targets the tools that Google DeepMind's open ecosystem is built on:
+
+| | What NEAT ships |
+|---|---|
+| **JAX** | Runs as a Keras 3 optimizer on the JAX backend; see [Keras 3, every backend](#keras-3-every-backend). |
+| **Gemma** | The LLM fine-tuning harness supports `google/gemma-2b` (LoRA, AMP, gradient accumulation) on Alpaca and GLUE SST-2. |
+| **MuJoCo** | The reinforcement-learning harness trains SAC policies on HalfCheetah-v5, Hopper-v5 and Walker2d-v5 with NEAT or AdamW. |
+
+```bash
+# Gemma-2B LoRA fine-tuning on Alpaca (requires Hugging Face auth for the Gemma weights)
+python -m benchmarks.torch_suite.language_model \
+    --task alpaca --model google/gemma-2b \
+    --optimizer neat --lora --epochs 1 --lr 2e-5 \
+    --batch-size 4 --gradient-accumulation 8 --amp
+```
+
+These are runnable harnesses. Gemma-scale and MuJoCo results have not been published yet; see
+[Status and limitations](#status-and-limitations). Setup details are in the
+[PyTorch benchmark guide](benchmarks/torch_suite/README.md).
+
+<sub>NEAT is an independent open-source project. It is not affiliated with or endorsed by
+Google or Google DeepMind. Gemma, JAX and MuJoCo are referenced only as tools NEAT works with.</sub>
+
+---
+
+## Installation
+
+> [!IMPORTANT]
+> **Not on PyPI yet.** Install from GitHub as shown below. pip builds the native C++
+> extension during install, so you need a C++ compiler (`xcode-select --install` on
+> macOS, `build-essential` on Debian/Ubuntu).
+
+**Keras + TensorFlow**
+```bash
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow
+```
+
+**Keras + JAX**
+```bash
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" "jax[cpu]"
+```
+
+**Keras + PyTorch** (any platform, including Apple Silicon)
+```bash
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch
+```
+
+**NumPy core only** (no framework required)
+```bash
+pip install "neat-optim @ git+https://github.com/ItCodinTime/NEAT.git"
+```
+
+**Local development**
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev,keras]" && pip install tensorflow
+```
+
+Requirements: Python 3.10 to 3.13, `keras>=3.13,<4`, Linux or macOS.
+→ Full guide: [Installation][docs-install]
+
+---
+
+## Quick start
+
+### Keras training
+
+```python
+import keras
+from neat_optim import NEAT
+
+model = keras.Sequential([
+    keras.layers.Input((32,)),
+    keras.layers.Dense(64, activation="relu"),
+    keras.layers.Dense(10),
+])
 
 optimizer = NEAT(
     learning_rate=1e-3,
@@ -260,8 +222,26 @@ model.fit(x_train, y_train, epochs=20, validation_data=(x_val, y_val))
 print(model.optimizer.diagnostic_snapshot())
 ```
 
+### Diagnostics in TensorBoard
+
+```python
+from neat_optim import NEATDiagnosticsCallback
+
+history = model.fit(
+    x_train, y_train,
+    callbacks=[
+        NEATDiagnosticsCallback(
+            log_dir="runs/neat",                          # TensorBoard scalars (pip install tensorboard)
+            report_path="runs/neat/training-report.html", # optional JSON/HTML report
+            reset_each_epoch=True,
+        ),
+    ],
+)
+print(history.history["neat_mean_conflict_ratio"])
+```
+
 <details>
-<summary><strong>Custom training loop</strong></summary>
+<summary><strong>Custom TensorFlow training loop</strong></summary>
 
 ```python
 import tensorflow as tf
@@ -314,7 +294,7 @@ print(result.metrics)
 </details>
 
 <details>
-<summary><strong>Per-example player-aware training</strong></summary>
+<summary><strong>Per-example player-aware training (TensorFlow backend)</strong></summary>
 
 ```python
 import keras
@@ -346,22 +326,21 @@ for x_batch, y_batch in dataset:
 
 </details>
 
+→ Full guides: [Keras][docs-keras] · [Player-aware NEAT][docs-player]
+
 ---
 
-## Public API
+## Choose a mode
 
-- `neat_optim.NEAT`
-- `neat_optim.NEATDiagnosticsCallback`
-- `neat_optim.NEATConfig`
-- `neat_optim.PlayerNEATConfig`
-- `neat_optim.ArrayState`
-- `neat_optim.engine.functional.neat_step`
-- `neat_optim.engine.multiplayer.neat_player_step`
-- `neat_optim.training.player_train_step`
+| If you want to… | Use | Guide |
+|---|---|---|
+| Train a regular Keras model | `NEAT` in `model.compile(...)` | [Keras][docs-keras] |
+| See whether the correction is doing anything | `diagnostic_snapshot()` / `NEATDiagnosticsCallback` | [Diagnostics](#diagnostics) |
+| Debug or experiment with the update rule | `neat_step(...)` (NumPy, deterministic) | [API][docs-api] |
+| Give each example or task its own gradient | `player_train_step(...)` | [Player-aware][docs-player] |
+| Train PyTorch models directly | `TorchNEAT` | [Benchmark guide](benchmarks/torch_suite/README.md) |
 
-## Diagnostics
-
-Call `diagnostic_snapshot()` after training to check whether the correction engaged:
+### Diagnostics
 
 ```python
 snap = model.optimizer.diagnostic_snapshot()
@@ -374,22 +353,11 @@ snap = model.optimizer.diagnostic_snapshot()
 # }
 ```
 
-> **Interpreting results:** If `mean_conflict_ratio < 0.01` and `correction_active_fraction < 0.1`, the correction is essentially inactive on this task. NEAT will behave like standard momentum SGD and tuning `alpha` won't help. Tasks with noisy or multi-objective gradients tend to show much higher conflict ratios.
-
-Optional research modes extend the same base update without changing defaults:
-
-- `adaptive_alpha=True` makes the correction strength respond to conflict,
-  gradient-noise, and alignment trends.
-- `adaptive_preconditioning=True` adds a cheap diagonal second-moment
-  preconditioner, similar in spirit to Fisher/Hessian-diagonal scaling.
-- `update_mode="lion"` applies a sign-based final update after the NEAT
-  correction.
-- `gradient_centralization=True`, `nesterov=True`, and `lookahead_k > 0` enable
-  standard training stabilizers that are useful benchmark ablations.
-
-This is Nash-inspired because the optimizer reacts to directional conflict
-between the current gradient and an opponent proxy. The exact behavior is
-defined in [`docs/research/math-spec.md`](docs/research/math-spec.md).
+> [!TIP]
+> If `mean_conflict_ratio < 0.01` and `correction_active_fraction < 0.1`, the correction is
+> essentially inactive on this task. NEAT will behave like momentum SGD and tuning `alpha`
+> won't help. Tasks with noisy or multi-objective gradients tend to show much higher
+> conflict ratios.
 
 Reset before each epoch to get per-epoch measurements:
 
@@ -404,108 +372,225 @@ for epoch in range(epochs):
 
 ---
 
+## How it works
+
+The current spec is `nce_spec_v2`. Each step adds a **Nash Conflict Elimination (NCE)**
+correction:
+
+```text
+o         =  opponent_proxy(g, m_prev)   # momentum, gradient EMA, or previous gradient
+conflict  =  relu( −cos(g, o) )          # positive only when the gradient opposes the opponent
+proj      =  proj_o(g)                   # project the gradient onto the opponent direction
+nce       =  −α · conflict · proj        # subtract the conflicting component
+u         =  g + nce                     # corrected gradient
+m         =  β·m_prev + (1−β)·u          # standard momentum
+θ_next    =  (1 − lr·wd)·θ  −  lr·m      # decoupled weight decay (default)
+```
+
+The correction is clipped: `‖nce‖ ≤ nce_clip_ratio · ‖g‖`. If there is no conflict, `nce = 0`
+and NEAT degrades to standard momentum SGD. With `adaptive_alpha=True`, `α` responds to
+conflict, gradient-noise, and alignment trends.
+
+It is *Nash-inspired* because the optimizer reacts to directional conflict between the
+current gradient and an opponent proxy. The full specification, including invariant proofs and
+a worked numerical example, is in [`docs/research/math-spec.md`](docs/research/math-spec.md).
+→ [Algorithm][docs-algorithm]
+
+<details>
+<summary><strong>Spec versions (<code>nce_spec_v2</code> default, <code>nce_spec_v3</code> opt-in)</strong></summary>
+
+`nce_spec_v2` is the default and its behavior is frozen. The v3 work is additive: v3 research
+options are not promoted without an explicit author decision and full cross-engine parity
+coverage.
+
+To select the additive specification, pass `spec_version="nce_spec_v3"`. Default-off v3
+controls cover parameter-local conflict granularity, an L2 trust-region correction bound,
+scheduled momentum/gradient-EMA opponent ensembles, correction/preconditioner composition
+order, and deterministic reference reductions. Existing constructors that omit `spec_version`
+continue to use v2 behavior.
+
+</details>
+
+---
+
+## Configuration
+
+<details>
+<summary><strong>Opponent signal</strong>: what counts as the conflict opponent</summary>
+
+| Value | Behaviour |
+|---|---|
+| `"momentum"` (default) | Uses the accumulated momentum vector |
+| `"gradient_ema"` | Uses an exponential moving average of raw gradients |
+| `"previous_gradient"` | Uses the previous raw gradient |
+| `"blended"` | Weighted mix of momentum and gradient EMA |
+
+</details>
+
+<details>
+<summary><strong>Correction controls</strong>: when and how much to correct</summary>
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `alpha` | `0.25` | Correction strength (`0` disables correction entirely) |
+| `nce_clip_ratio` | `1.0` | Max correction size as fraction of gradient norm |
+| `correction_warmup_steps` | `0` | Steps before correction activates |
+| `conflict_threshold` | `0.0` | Minimum conflict ratio to apply any correction |
+| `nce_mode` | `"projection"` | `"projection"`, `"cosine"`, or `"off"` |
+
+</details>
+
+<details>
+<summary><strong>Adaptive features</strong>: optional scaling and preconditioning</summary>
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `adaptive_alpha` | `False` | Correction strength responds to conflict, noise, and alignment trends |
+| `adaptive_correction` | `False` | Scale correction by opponent reliability and conflict EMA |
+| `adaptive_correction_decay` | `0.9` | EMA decay for adaptive correction |
+| `adaptive_correction_min_scale` | `1.0` | Lower clamp on adaptive scale |
+| `adaptive_correction_max_scale` | `3.0` | Upper clamp on adaptive scale |
+| `adaptive_preconditioning` | `False` | Diagonal second-moment preconditioner (Fisher/Hessian-diagonal in spirit) |
+| `second_moment_beta` | `0.999` | Decay for second-moment EMA |
+| `bias_correction` | `False` | Bias-correct momentum and second moment |
+
+</details>
+
+<details>
+<summary><strong>Training stabilizers</strong>: useful benchmark ablations</summary>
+
+| Parameter | Effect |
+|---|---|
+| `update_mode="lion"` | Lion-style sign update after the NEAT correction |
+| `gradient_centralization=True` | Center matrix-like gradients before the update |
+| `nesterov=True` | Nesterov-style momentum |
+| `lookahead_k > 0` | Lookahead slow-weight synchronization every `k` steps |
+
+</details>
+
+<details>
+<summary><strong>Sparsity and weight decay</strong></summary>
+
+| Parameter | Default | Effect |
+|---|---|---|
+| `weight_decay` | `0.0` | L2 weight decay coefficient |
+| `decouple_weight_decay` | `True` | Apply decay before the gradient step (AdamW-style) |
+| `sparsity_l1` | `0.0` | Soft L1 shrinkage after each step |
+| `prune_threshold` | `0.0` | Hard-zero weights below this magnitude |
+
+</details>
+
+→ Full reference: [Configuration][docs-config]
+
+---
+
 ## Benchmarks
 
-The repository includes both lightweight local checks and larger benchmark
-harnesses:
+> [!WARNING]
+> These are early results. Read them as evidence, not as a claim that NEAT beats every
+> other optimizer.
 
-- lint checks via `ruff`
-- package build via `python -m build`
-- docs build via `mkdocs build --strict`
-- Keras integration tests
-- reference/native parity tests
-- a real Keras MLP benchmark against SGD, Adam, and AdamW
-- a real Keras CNN benchmark on MNIST and Fashion-MNIST
-- runnable benchmark harnesses for CIFAR-10 and GLUE SST-2
-- benchmark diagnostics and sweep tooling for NEAT-specific ablations
+**Short-transfer Keras CNN** (MNIST and Fashion-MNIST, 3 seeds, 2 epochs). Adaptive NEAT
+reaches the best mean test accuracy on both datasets:
 
-Evaluated on the sklearn digits dataset, two-layer MLP, 20 epochs, 3 seeds:
+| Dataset | Adaptive NEAT | Adam |
+|---|---|---|
+| MNIST | **0.9861** | 0.9856 |
+| Fashion-MNIST | **0.8786** | 0.8725 |
 
-| Optimizer | Test Accuracy | Notes |
+**Keras MLP** (sklearn digits, two-layer MLP, 20 epochs, 3 seeds). NEAT trails the baselines:
+
+| Optimizer | Test accuracy | Notes |
 |---|---|---|
 | SGD + momentum | **97.04%** | lr=0.01, momentum=0.9 |
-| Adam | **96.85%** | default hyperparameters |
-| AdamW | **96.85%** | weight_decay=1e-4 |
+| Adam | 96.85% | default hyperparameters |
+| AdamW | 96.85% | weight_decay=1e-4 |
 | NEAT | 94.72% | α=0.25, β=0.9, gradient_ema opponent |
 
-On the current 20-epoch Keras digits benchmark, NEAT reaches `0.9472` mean
-test accuracy and trails SGD/Adam baselines. The attached diagnostics show why
-that is plausible: the mean correction ratio is only `0.00385` and the mean
-gradient/update alignment is `0.99991`, so NEAT is behaving very close to its
-base update on this well-aligned task.
+The diagnostics explain why: on this well-aligned task the mean correction ratio is only
+`0.00385` and gradient/update alignment is `0.99991`, so NEAT behaves very close to its base
+update.
 
-On a stronger short-transfer benchmark with a small CNN on `MNIST` and
-`Fashion-MNIST` over 3 seeds and 2 epochs, adaptive NEAT now reaches the best
-mean test accuracy on both datasets: `0.9861` vs `0.9856` for Adam on MNIST,
-and `0.8786` vs `0.8725` for Adam on Fashion-MNIST. That is better evidence
-than the digits-only benchmark, but it is still not a substitute for broader
-GPU-side benchmarks such as ImageNet or GLUE.
+### Modern benchmark suite (PyTorch)
 
-To reproduce the benchmark:
+Runnable comparisons cover image classification (ResNet-18/34 on CIFAR-10/100 and
+ImageFolder), vision transformers (ViT-S/16, DeiT-S/16), LLM fine-tuning (TinyLlama-1.1B,
+Phi-2, Gemma-2B on GLUE SST-2 and Alpaca), MuJoCo control (SAC), MNIST diffusion (UNet-2D
+DDPM), and large-batch stability. Each run records convergence, loss variance, wall time,
+environment metadata, and optimizer diagnostics. The dataset-free gate runs five seeds across
+NEAT, AdamW, SGD momentum, Lion, PCGrad, and CAGrad:
 
 ```bash
-python benchmarks/run.py          # reproduce the table above
-python benchmarks/sweep_neat.py   # hyperparameter sweep
-python benchmarks/compare_optimizers.py  # side-by-side comparison
+python -m benchmarks.torch_suite.compare_all --quick
 ```
 
-Full methodology and results: [`docs/research/benchmarks.md`](docs/research/benchmarks.md).
+<details>
+<summary><strong>Reproduce the Keras benchmarks</strong></summary>
+
+```bash
+python benchmarks/run.py                                # MLP table above
+python benchmarks/vision_adaptive_neat_vs_baselines.py  # MNIST / Fashion-MNIST CNN
+python benchmarks/cifar10_adaptive_neat_vs_baselines.py # CIFAR-10 harness
+python benchmarks/glue_sst2_adaptive_neat_vs_baselines.py # GLUE SST-2 harness
+python benchmarks/sweep_neat.py                         # hyperparameter sweep
+python benchmarks/compare_optimizers.py                 # side-by-side comparison
+```
+
+</details>
+
+For large PyTorch models, `TorchNEAT(..., diagnostic_interval=10)` samples diagnostics every
+ten steps. This reduces accelerator synchronization cost and does not change the optimizer
+updates.
+
+→ Methodology and full results: [Benchmarks][docs-benchmarks] ·
+[`docs/research/benchmarks.md`](docs/research/benchmarks.md) ·
+[PyTorch suite guide](benchmarks/torch_suite/README.md)
 
 ---
 
-## Repository Layout
+## Public API
 
-```
-neat-optim/
-├── src/neat_optim/
-│   ├── engine/
-│   │   ├── reference.py      # canonical NumPy implementation (nce_spec_v1)
-│   │   ├── functional.py     # public neat_step() API with native fallback
-│   │   ├── multiplayer.py    # per-player stepping
-│   │   └── native.py         # native extension bridge
-│   ├── training/
-│   │   └── tensorflow_players.py  # TF player-aware helpers
-│   ├── config.py             # NEATConfig, PlayerNEATConfig
-│   ├── state.py              # ArrayState, StepResult, StepMetrics
-│   ├── keras_optimizer.py    # Keras adapter
-│   └── compaction.py         # dense model pruning utilities
-├── cpp/neat_core/            # optional C++ extension (pybind11)
-├── tests/
-│   ├── unit/                 # algorithm correctness, config validation
-│   ├── integration/          # Keras optimizer, player training, compaction
-│   ├── property/             # randomized invariant checks
-│   └── regression/           # reproducibility of documented examples
-├── benchmarks/               # reproducible benchmark entrypoints
-├── examples/                 # minimal runnable scripts
-└── docs/
-    ├── research/             # math spec, algorithm, player-aware, benchmarks
-    └── contributing/         # architecture, development, release workflow
-```
+| Symbol | Purpose |
+|---|---|
+| `neat_optim.NEAT` | Keras optimizer for `model.compile` |
+| `neat_optim.NEATDiagnosticsCallback` | Epoch-level diagnostics in `History` / TensorBoard |
+| `neat_optim.NEATConfig` | Reference engine configuration |
+| `neat_optim.PlayerNEATConfig` | Configuration for per-player gradient updates |
+| `neat_optim.ArrayState` | Per-parameter reference engine state |
+| `neat_optim.engine.functional.neat_step` | Framework-agnostic one-step update |
+| `neat_optim.engine.multiplayer.neat_player_step` | Player-aware one-step update with conflict/sparsity metrics |
+| `neat_optim.training.player_train_step` | TensorFlow helper for custom loops with per-example losses |
+| `neat_optim.TorchNEAT` | Optional PyTorch optimizer adapter (requires `neat-optim[torch]`) |
+
+→ Full reference: [API][docs-api] · [`docs/api.md`](docs/api.md)
 
 ---
 
-To run the short standard vision benchmark:
+## Status and limitations
 
-```bash
-python benchmarks/vision_adaptive_neat_vs_baselines.py
-```
+> [!NOTE]
+> **Pre-release (`0.1.0.dev0`).** There is no tagged release yet. The public API is
+> intentionally narrow: these are the pieces that have been validated end-to-end.
 
-To run the CIFAR-10 benchmark harness:
+| Component | Description |
+|---|---|
+| `NEAT` Keras optimizer | Drop-in `model.compile()` optimizer, fully serializable via `get_config()` |
+| NumPy reference engine | Canonical implementation used for correctness validation and framework-free use |
+| Functional API | `neat_step(param, grad, state, config)`, which works without Keras or TensorFlow |
+| Player-aware mode | Treats each per-example gradient as a separate player in a custom TF training loop |
+| Native CPU extension | Optional C++ extension (pybind11) with automatic fallback to the reference engine |
+| Model compaction | `compact_dense_model()` and `search_compact_dense_model()` for sparse model search |
+| Diagnostics API | `diagnostic_snapshot()` to measure correction activity during and after training |
 
-```bash
-python benchmarks/cifar10_adaptive_neat_vs_baselines.py
-```
+**Known limitations**
 
-To run the GLUE SST-2 benchmark harness:
+- The native C++ extension is CPU-only, with no GPU kernel yet.
+- Player-aware mode requires TensorFlow as the Keras backend.
+- CI exercises the TensorFlow backend. JAX and PyTorch backends are smoke-tested, not yet in CI.
+- Published evidence currently consists of small Keras studies plus preliminary CPU PyTorch
+  studies. No GPU-scale ImageNet, full foundation-model, or production RL claim is made.
 
-```bash
-python benchmarks/glue_sst2_adaptive_neat_vs_baselines.py
-```
-
-The CIFAR-10 and GLUE SST-2 harnesses are included so the repo can scale to
-stronger benchmark environments. They are runnable here, but full credible
-ImageNet- or broad-GLUE-style evidence still requires a stronger machine than
-this local CPU-only setup.
+---
 
 ## Development
 
@@ -520,25 +605,81 @@ python -m build                                        # build wheel + sdist
 mkdocs build --strict                                  # docs build
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, PR standards, and how to report bugs.
+<details>
+<summary><strong>Repository layout</strong></summary>
+
+```
+neat-optim/
+├── src/neat_optim/
+│   ├── engine/
+│   │   ├── reference.py      # canonical NumPy implementation
+│   │   ├── functional.py     # public neat_step() API with native fallback
+│   │   ├── multiplayer.py    # per-player stepping
+│   │   └── native.py         # native extension bridge
+│   ├── training/
+│   │   └── tensorflow_players.py  # TF player-aware helpers
+│   ├── config.py             # NEATConfig, PlayerNEATConfig
+│   ├── state.py              # ArrayState, StepResult, StepMetrics
+│   ├── keras_optimizer.py    # Keras adapter
+│   ├── callbacks.py          # NEATDiagnosticsCallback
+│   └── compaction.py         # dense model pruning utilities
+├── cpp/neat_core/            # optional C++ extension (pybind11)
+├── tests/
+│   ├── unit/                 # algorithm correctness, config validation
+│   ├── integration/          # Keras optimizer, player training, compaction
+│   ├── property/             # randomized invariant checks
+│   └── regression/           # reproducibility of documented examples
+├── benchmarks/               # Keras benchmarks + torch_suite/ modern PyTorch suite
+├── examples/                 # minimal runnable scripts
+└── docs/
+    ├── research/             # math spec, algorithm, player-aware, benchmarks
+    └── contributing/         # architecture, development, release workflow
+```
+
+</details>
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, PR standards, and how to report
+bugs. → [Development][docs-dev]
 
 ---
 
 ## Documentation
 
-| | |
-|---|---|
-| [Quickstart](docs/quickstart.md) | Installation and first usage |
-| [API Reference](docs/api.md) | Full public API |
-| [Math Spec](docs/research/math-spec.md) | Versioned update rule (`nce_spec_v1`) |
-| [Algorithm](docs/research/algorithm.md) | Motivation and design |
-| [Player-aware mode](docs/research/player-aware.md) | Per-example gradient stepping |
-| [Benchmarks](docs/research/benchmarks.md) | Reproducible results |
-| [Contributing](CONTRIBUTING.md) | Development workflow |
-| [Changelog](CHANGELOG.md) | Release history |
+The documentation site at **[NEAT Docs][docs]** covers everything in this README in more depth:
+
+| Docs site | In this repo | |
+|---|---|---|
+| [Introduction][docs] | [README](README.md) | What NEAT is and isn't |
+| [Installation][docs-install] | [docs/quickstart.md](docs/quickstart.md) | Install options and requirements |
+| [Keras][docs-keras] | [examples/](examples) | `model.compile` usage and diagnostics |
+| [Choose a mode][docs-modes] | | Picking the right entry point |
+| [Player-aware NEAT][docs-player] | [docs/research/player-aware.md](docs/research/player-aware.md) | Per-example gradient stepping |
+| [API reference][docs-api] | [docs/api.md](docs/api.md) | Full public API |
+| [Configuration][docs-config] | | Optimizer arguments |
+| [Algorithm][docs-algorithm] | [docs/research/math-spec.md](docs/research/math-spec.md) | Versioned update rule |
+| [Benchmarks][docs-benchmarks] | [docs/research/benchmarks.md](docs/research/benchmarks.md) | Reproducible results |
+| [Development][docs-dev] | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow |
+| [Resources][docs-resources] | [CHANGELOG.md](CHANGELOG.md) | Policies, changelog, contact |
+
+Questions: open a [GitHub issue](https://github.com/ItCodinTime/NEAT/issues) or email
+[gouthamkrishnaronanki@gmail.com](mailto:gouthamkrishnaronanki@gmail.com).
 
 ---
 
 ## License
 
-[Apache 2.0](LICENSE) — includes an explicit patent grant, which is the right default for optimization infrastructure.
+[Apache 2.0](LICENSE), which includes an explicit patent grant: the right default for
+optimization infrastructure.
+
+<!-- Docs site links: set DOCS_URL below to the live docs domain (e.g. the Vercel production URL). -->
+[docs]: https://DOCS_URL/docs
+[docs-install]: https://DOCS_URL/docs/installation
+[docs-keras]: https://DOCS_URL/docs/keras
+[docs-modes]: https://DOCS_URL/docs/modes
+[docs-player]: https://DOCS_URL/docs/player-aware
+[docs-api]: https://DOCS_URL/docs/api
+[docs-config]: https://DOCS_URL/docs/configuration
+[docs-algorithm]: https://DOCS_URL/docs/algorithm
+[docs-benchmarks]: https://DOCS_URL/docs/benchmarks
+[docs-dev]: https://DOCS_URL/docs/development
+[docs-resources]: https://DOCS_URL/docs/resources
