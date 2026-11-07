@@ -2,28 +2,32 @@
 
 ## Installation
 
+> **Not on PyPI yet.** Install from GitHub as shown below. pip builds the native C++
+> extension during install, so you need a C++ compiler (`xcode-select --install` on
+> macOS, `build-essential` on Debian/Ubuntu).
+
 ### With TensorFlow backend
 
 ```bash
-pip install "neat-optim[keras]" tensorflow
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow
 ```
 
 ### With PyTorch backend
 
 ```bash
-pip install "neat-optim[keras]" torch
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch
 ```
 
 ### With JAX backend
 
 ```bash
-pip install "neat-optim[keras]" jax
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" jax
 ```
 
 ### NumPy core only (no Keras required)
 
 ```bash
-pip install neat-optim
+pip install "neat-optim @ git+https://github.com/ItCodinTime/NEAT.git"
 ```
 
 The `neat-optim` core depends only on NumPy. Keras and a backend runtime are optional and only needed for the `NEAT` Keras optimizer.

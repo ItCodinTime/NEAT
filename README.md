@@ -20,14 +20,14 @@ path.
 
 [![CI](https://github.com/ItCodinTime/NEAT/actions/workflows/ci.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/ci.yml)
 [![Keras Integration](https://github.com/ItCodinTime/NEAT/actions/workflows/keras-integration.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/keras-integration.yml)
-[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-3776AB?logo=python&logoColor=white)](https://pypi.org/project/neat-optim/)
+[![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0.dev0-orange)](CHANGELOG.md)
 
 <br>
 
 ```
-pip install "neat-optim[keras]" tensorflow
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow
 ```
 
 </div>
@@ -90,9 +90,9 @@ The dataset-free `python -m benchmarks.torch_suite.compare_all --quick` gate
 runs five seeds across NEAT, AdamW, SGD momentum, Lion, PCGrad, and CAGrad in
 their applicable synthetic settings.
 
-## What's in v0.1.0
+## What's in 0.1.0.dev0
 
-> **First release.** Everything listed here is shipping in `0.1.0`. The public API is intentionally narrow — these are the pieces that have been validated end-to-end.
+> **Pre-release.** Everything listed here is in the current development version (`0.1.0.dev0`); there is no tagged release yet. The public API is intentionally narrow — these are the pieces that have been validated end-to-end.
 
 ### Core algorithm
 
@@ -177,7 +177,7 @@ The full specification — including invariant proofs and a worked numerical exa
 
 </details>
 
-### Known limitations in v0.1.0
+### Known limitations in 0.1.0.dev0
 
 - Native C++ extension is CPU-only — no GPU kernel yet
 - Player-aware mode requires TensorFlow as the Keras backend
@@ -189,24 +189,28 @@ The full specification — including invariant proofs and a worked numerical exa
 
 ## Installation
 
+> **Not on PyPI yet.** Install from GitHub as shown below. pip builds the native C++
+> extension during install, so you need a C++ compiler (`xcode-select --install` on
+> macOS, `build-essential` on Debian/Ubuntu).
+
 **With TensorFlow** (Linux / macOS):
 ```bash
-pip install "neat-optim[keras]" tensorflow
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow
 ```
 
 **With PyTorch** (any platform, including Apple Silicon):
 ```bash
-pip install "neat-optim[keras]" torch
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch
 ```
 
 **With JAX**:
 ```bash
-pip install "neat-optim[keras]" jax
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" jax
 ```
 
 **NumPy core only** (no framework required):
 ```bash
-pip install neat-optim
+pip install "neat-optim @ git+https://github.com/ItCodinTime/NEAT.git"
 ```
 
 **Local development**:
@@ -302,7 +306,9 @@ for _ in range(10):
     state  = result.state
 
 print(result.metrics)
-# StepMetrics(grad_norm=0.559, conflict_ratio=0.012, nce_norm=0.001, ...)
+# StepMetrics(grad_norm=0.568, update_norm=0.370, nce_norm=0.0, conflict_ratio=0.0, ...)
+# conflict_ratio and nce_norm are 0.0 here: a constant gradient never conflicts
+# with its own momentum, so the correction stays off.
 ```
 
 </details>
