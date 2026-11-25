@@ -9,6 +9,12 @@ gh api --method POST repos/ItCodinTime/NEAT/rulesets \
   --input .github/rulesets/main.json
 ```
 
+The ruleset lets the repository-admin role bypass it in pull-request mode only. Without
+this, a sole code owner could never merge their own pull requests. Direct pushes,
+force-pushes and branch deletion stay blocked for everyone.
+
+To update an existing ruleset, use `--method PUT repos/ItCodinTime/NEAT/rulesets/<id>`.
+
 Then verify the ruleset is active:
 
 ```bash
