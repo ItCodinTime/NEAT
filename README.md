@@ -49,7 +49,8 @@ print(optimizer.diagnostic_snapshot())
 > [!NOTE]
 > **Name note:** NEAT here means *Nash-Equilibrium Adaptive Training*. It is unrelated to
 > NeuroEvolution of Augmenting Topologies (Stanley and Miikkulainen, 2002). It is also not
-> neural architecture search, and not a full game-theory solver.
+> neural architecture search, and not a full game-theory solver. NEAT is *Nash-inspired*:
+> it does not compute a Nash equilibrium and makes no Nash-equilibrium convergence guarantee.
 
 ---
 
