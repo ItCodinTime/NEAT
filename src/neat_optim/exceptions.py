@@ -1,5 +1,6 @@
 """Custom exception hierarchy for NEAT."""
 
+
 class NEATError(Exception):
     """Base exception for NEAT."""
 

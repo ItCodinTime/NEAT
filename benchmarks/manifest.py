@@ -50,7 +50,9 @@ def reproducibility_metadata(
         "hardware": {
             "machine": platform.machine(),
             "processor": platform.processor(),
-            "hostname": platform.node(),
+            # Hostnames often contain a contributor's real name. They are not
+            # needed to reproduce a benchmark and must not enter public artifacts.
+            "hostname": "redacted",
             "cpu_count": os.cpu_count(),
             "device": str(device) if device is not None else "unknown",
         },

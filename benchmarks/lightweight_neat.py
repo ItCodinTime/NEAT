@@ -113,9 +113,7 @@ def run_lightweight_neat_benchmark() -> dict:
 
 def main() -> None:
     result = run_lightweight_neat_benchmark()
-    out = Path(
-        f"benchmarks/results/neat_lightweight_digits_{result['date']}.json"
-    )
+    out = Path(f"benchmarks/results/neat_lightweight_digits_{result['date']}.json")
     out.write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2))
 

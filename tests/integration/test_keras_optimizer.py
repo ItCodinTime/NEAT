@@ -7,6 +7,7 @@ keras = pytest.importorskip("keras")
 from neat_optim import NEAT, NEATDiagnosticsCallback  # noqa: E402
 from neat_optim.config import NEATConfig  # noqa: E402
 from neat_optim.engine.reference import neat_step_reference  # noqa: E402
+from neat_optim.exceptions import ConfigurationError  # noqa: E402
 from neat_optim.state import ArrayState  # noqa: E402
 
 
@@ -97,7 +98,7 @@ def test_keras_optimizer_config_round_trip() -> None:
         opponent_ensemble_momentum_weight=0.3,
         opponent_ensemble_schedule_steps=10,
         correction_preconditioning_order="correction_then_precondition",
-        deterministic=True,
+        conflict_granularity="per_parameter",
         diagnostic_interval=3,
     )
     clone = NEAT.from_config(optimizer.get_config())
@@ -140,7 +141,7 @@ def test_keras_optimizer_config_round_trip() -> None:
         clone.get_config()["correction_preconditioning_order"]
         == "correction_then_precondition"
     )
-    assert clone.get_config()["deterministic"] is True
+    assert clone.get_config()["deterministic"] is False
     assert clone.get_config()["diagnostic_interval"] == 3
 
 
@@ -167,8 +168,6 @@ def test_keras_diagnostic_sampling_does_not_change_updates() -> None:
             "adaptive_preconditioning": True,
             "correction_preconditioning_order": "correction_then_precondition",
         },
-        {"deterministic": True},
-        {"conflict_granularity": "per_parameter"},
     ],
 )
 def test_keras_v3_options_match_reference(v3_options) -> None:
@@ -180,6 +179,7 @@ def test_keras_v3_options_match_reference(v3_options) -> None:
     ]
     options = {
         "spec_version": "nce_spec_v3",
+        "conflict_granularity": "per_parameter",
         "learning_rate": 0.02,
         "beta": 0.8,
         **v3_options,
@@ -190,6 +190,18 @@ def test_keras_v3_options_match_reference(v3_options) -> None:
     np.testing.assert_allclose(
         _to_numpy(optimizer.nces[0]), expected.state.nce, rtol=2e-5, atol=2e-6
     )
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"spec_version": "nce_spec_v3", "deterministic": True},
+        {"spec_version": "nce_spec_v3", "conflict_granularity": "global"},
+    ],
+)
+def test_keras_rejects_reference_only_v3_options(options) -> None:
+    with pytest.raises(ConfigurationError):
+        NEAT(**options)
 
 
 def test_keras_optimizer_matches_reference_projection_mode() -> None:

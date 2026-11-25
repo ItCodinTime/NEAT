@@ -35,6 +35,15 @@ Comparators:
 - Adam
 - adaptive NEAT
 
+This historical run used fixed baseline recipes and an exploratory NEAT configuration named
+`neat_adaptive`. It was not an equal-budget tuning study and therefore does not support a
+general superiority claim. New headline comparisons must follow the validation-locked
+protocol and give every optimizer the same declared search budget.
+
+Archived April 2026 JSON files retain the original internal identifier
+`neat_adaptive_best`. That label records selection within an early NEAT-only sweep; it is not
+a claim that the configuration is best against independently tuned baselines.
+
 Adaptive NEAT was run with:
 
 ```text
@@ -72,8 +81,9 @@ bias_correction       = True
 
 - This is materially stronger evidence than the earlier digits-only MLP benchmark
   because it uses standard image datasets and a convolutional model.
-- On this short multi-seed run, adaptive NEAT achieved the best mean test
-  accuracy on both MNIST and Fashion-MNIST.
+- On this short multi-seed run, adaptive NEAT reported the highest mean test
+  accuracy on both MNIST and Fashion-MNIST; the tuning asymmetry prevents a
+  general comparison claim.
 - NEAT did not uniformly win on every metric. Adam still achieved lower mean
   test loss than NEAT on MNIST and ran slightly faster there.
 - The benchmark is still short and CPU-bound. It is useful as transfer evidence,
@@ -234,12 +244,11 @@ Reproducible YAML presets are in `benchmarks/configs/`:
 - `diffusion_mnist.yaml`
 - `large_batch_stability.yaml`
 
-### Completed research reports
+### Curated research reports
 
-- [CIFAR-10 ResNet-18 MPS study, 2026-06-29](cifar10-resnet18-mps-2026-06-29.md)
-- [Benchmark run status and server sweep queue, 2026-07-28](benchmark-run-status-2026-07-28.md)
-- [Validation-locked CIFAR protocol](validation-locked-benchmark-protocol.md)
-- [Pre-registered final Vultr validation queue, 2026-07-31](vultr-final-validation-suite-2026-07-31.md)
-- [Live Vultr locked-run ledger, 2026-08-02](vultr-locked-run-ledger-2026-08-02.md)
-- [Industry benchmark matrix](industry-benchmark-matrix.md)
-- [Benchmark deadline handoff, 2026-08-03](benchmark-deadline-handoff-2026-08-03.md)
+- [CIFAR-10 ResNet-18 MPS study](cifar10-resnet18-mps-2026-06-29.md): a short,
+  matched comparison that reports a null result and measured overhead.
+- [Validation-locked CIFAR protocol](validation-locked-benchmark-protocol.md): the required
+  procedure for future comparative claims.
+- [Task-aware NEAT v2](task-aware-neat-v2.md): an exploratory negative result retained to
+  document the method boundary.

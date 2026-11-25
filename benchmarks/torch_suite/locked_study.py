@@ -167,8 +167,8 @@ def _vision_command(
         evaluation_split,
         "--tuning-status",
         tuning_status,
-                        "--study-id",
-                        study,
+        "--study-id",
+        study,
     ]
     if evaluation_split == "test":
         command.extend(["--target-accuracy", str(spec["target_accuracy"])])

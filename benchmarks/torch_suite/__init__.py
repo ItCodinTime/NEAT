@@ -11,4 +11,3 @@ compare_all         Head-to-head orchestration across all categories
 common              Shared utilities (device, seeding, logging)
 report              Aggregate result manifests into CSV and plots
 """
-

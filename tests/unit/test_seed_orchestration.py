@@ -1,6 +1,7 @@
 from argparse import Namespace
 
 import pytest
+from benchmarks.manifest import reproducibility_metadata
 from benchmarks.torch_suite.common import orchestrate_seeds
 
 
@@ -17,3 +18,8 @@ def test_orchestrated_single_seed_inherits_preliminary_stamp(monkeypatch) -> Non
     args = Namespace(seed=7, allow_single_seed=False, seeds=[7])
     assert orchestrate_seeds("unused", args, []) is False
     assert args.preliminary is True
+
+
+def test_reproducibility_metadata_redacts_hostname() -> None:
+    metadata = reproducibility_metadata(seed=7, invocation=["benchmark"])
+    assert metadata["hardware"]["hostname"] == "redacted"

@@ -24,9 +24,7 @@ def _validate_player_grads(param: np.ndarray, player_grads: np.ndarray) -> None:
     if player_grads.ndim < 1:
         raise ShapeError("player_grads must have a leading player dimension.")
     if tuple(player_grads.shape[1:]) != tuple(param.shape):
-        raise ShapeError(
-            "player_grads must have shape (num_players, *param.shape)."
-        )
+        raise ShapeError("player_grads must have shape (num_players, *param.shape).")
 
 
 def _player_opponent(
@@ -37,10 +35,12 @@ def _player_opponent(
 ) -> np.ndarray:
     """Return the peer-gradient signal faced by one player."""
     if config.opponent_mode == "batch_mean":
-        return player_grads.mean(axis=0)
+        return as_float32(player_grads.mean(axis=0))
     if player_grads.shape[0] == 1:
         return np.zeros_like(player_grads[index])
-    return (summed_grads - player_grads[index]) / np.float32(player_grads.shape[0] - 1)
+    return as_float32(
+        (summed_grads - player_grads[index]) / np.float32(player_grads.shape[0] - 1)
+    )
 
 
 def _aggregate_players(
@@ -49,8 +49,8 @@ def _aggregate_players(
 ) -> np.ndarray:
     """Combine player tensors using the configured batch reduction."""
     if reduction == "sum":
-        return tensors.sum(axis=0)
-    return tensors.mean(axis=0)
+        return as_float32(tensors.sum(axis=0))
+    return as_float32(tensors.mean(axis=0))
 
 
 def neat_player_step(
@@ -85,9 +85,8 @@ def neat_player_step(
     for index, gradient in enumerate(player_grads32):
         opponent = _player_opponent(player_grads32, index, config, summed_grads)
         conflict = conflict_ratio(gradient, opponent, config.eps)
-        next_conflict_ema = (
-            (config.adaptive_correction_decay * next_conflict_ema)
-            + ((1.0 - config.adaptive_correction_decay) * conflict)
+        next_conflict_ema = (config.adaptive_correction_decay * next_conflict_ema) + (
+            (1.0 - config.adaptive_correction_decay) * conflict
         )
         if (
             config.nce_mode == "off"

@@ -13,7 +13,7 @@ from neat_optim.engine.common import (
 )
 from neat_optim.engine.native import load_native_core
 from neat_optim.engine.reference import neat_step_reference
-from neat_optim.exceptions import NativeCoreUnavailableError
+from neat_optim.exceptions import ConfigurationError, NativeCoreUnavailableError
 from neat_optim.state import ArrayState, StepMetrics, StepResult
 from neat_optim.utils.metrics import l2_norm
 
@@ -31,11 +31,10 @@ def neat_step(
     optional native core to accelerate execution.
     """
 
-    # The native kernel currently implements the stable v1 subset. Any newer
+    # The native kernel currently implements the stable v2 subset. Any newer
     # research feature falls through to the complete NumPy specification.
-    if (
-        config.native != "never"
-        and config.spec_version == "nce_spec_v2"
+    native_supported = (
+        config.spec_version == "nce_spec_v2"
         and config.sparsity_l1 == 0.0
         and config.prune_threshold == 0.0
         and config.opponent_source == "momentum"
@@ -59,7 +58,14 @@ def neat_step(
         and not config.nesterov
         and config.lookahead_k == 0
         and config.lookahead_alpha == 0.5
-    ):
+    )
+    if config.native == "force" and not native_supported:
+        raise ConfigurationError(
+            "native='force' only supports the stable v2 momentum subset; "
+            "use native='auto' to allow reference-engine fallback"
+        )
+
+    if config.native != "never" and native_supported:
         try:
             # Preserve pre-step momentum because the in-place native kernel
             # cannot reconstruct the opponent norm after it updates state.

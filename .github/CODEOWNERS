@@ -1,0 +1,8 @@
+# Default ownership keeps every public change visible to a maintainer.
+* @ItCodinTime
+
+# Algorithm and release changes always require maintainer review.
+/src/neat_optim/engine/ @ItCodinTime
+/docs/research/ @ItCodinTime
+/.github/workflows/ @ItCodinTime
+/pyproject.toml @ItCodinTime

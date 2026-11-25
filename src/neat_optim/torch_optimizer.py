@@ -18,6 +18,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - dependency guard
     ) from exc
 
 from neat_optim.config import NEATConfig
+from neat_optim.exceptions import ConfigurationError
 
 
 class TorchNEAT(torch.optim.Optimizer):
@@ -40,6 +41,19 @@ class TorchNEAT(torch.optim.Optimizer):
             kwargs.pop("lr", 1e-3) if learning_rate is None else learning_rate
         )
         config = NEATConfig(learning_rate=learning_rate, native="never", **kwargs)
+        if config.deterministic:
+            raise ConfigurationError(
+                "deterministic ordered reductions are available only in the "
+                "NumPy reference engine"
+            )
+        if (
+            config.spec_version == "nce_spec_v3"
+            and config.conflict_granularity == "global"
+        ):
+            raise ConfigurationError(
+                "global conflict granularity requires neat_group_step_reference; "
+                "TorchNEAT updates one parameter tensor at a time"
+            )
         self.config = config
         # Diagnostics require several tensor reductions. Sampling them makes
         # accelerator benchmarks cheaper without changing optimizer updates.

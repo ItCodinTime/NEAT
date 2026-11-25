@@ -1,7 +1,6 @@
-"""Train a small Keras model with NEAT.
+"""Train a small backend-neutral Keras model with NEAT.
 
-Requires:
-    pip install "neat-optim[keras]" tensorflow
+Set ``KERAS_BACKEND`` to ``tensorflow``, ``jax``, or ``torch`` before launch.
 """
 
 import keras
@@ -13,7 +12,7 @@ from neat_optim import NEAT
 def main() -> None:
     rng = np.random.default_rng(0)
     x = rng.normal(size=(256, 32)).astype("float32")
-    y = rng.integers(0, 3, size=(256,), endpoint=False)
+    y = rng.integers(0, 3, size=(256,), endpoint=False, dtype=np.int32)
 
     model = keras.Sequential(
         [

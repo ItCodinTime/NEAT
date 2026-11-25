@@ -9,6 +9,7 @@ torch = pytest.importorskip("torch")
 
 from neat_optim import ArrayState, NEATConfig, TorchNEAT  # noqa: E402
 from neat_optim.engine.reference import neat_step_reference  # noqa: E402
+from neat_optim.exceptions import ConfigurationError  # noqa: E402
 
 
 def _run_reference_and_torch(
@@ -127,7 +128,6 @@ def test_torch_neat_rejects_invalid_diagnostic_interval() -> None:
             "opponent_ensemble_schedule_steps": 3,
             "adaptive_preconditioning": True,
             "correction_preconditioning_order": "correction_then_precondition",
-            "deterministic": True,
             "conflict_granularity": "per_parameter",
         },
     ],
@@ -182,6 +182,18 @@ def test_torch_gradient_centralization_uses_pytorch_channel_layout() -> None:
     # centralized gradient. Each output channel should therefore sum to zero.
     updates = -parameter.detach() / 0.1
     torch.testing.assert_close(updates.mean(dim=(1, 2, 3)), torch.zeros(2))
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"spec_version": "nce_spec_v3", "deterministic": True},
+        {"spec_version": "nce_spec_v3", "conflict_granularity": "global"},
+    ],
+)
+def test_torch_rejects_reference_only_v3_options(options) -> None:
+    with pytest.raises(ConfigurationError):
+        TorchNEAT([torch.nn.Parameter(torch.ones(1))], **options)
 
 
 def test_benchmark_parsers_do_not_load_heavy_dependencies() -> None:

@@ -30,7 +30,7 @@ class NEATConfig:
     where they are user-facing.
     """
 
-    # Core momentum and Nash-conflict correction controls.
+    # Core momentum and conflict-correction controls.
     spec_version: str = "nce_spec_v2"
     learning_rate: float = 1e-3
     alpha: float = 0.25
@@ -70,18 +70,14 @@ class NEATConfig:
     nesterov: bool = False
     lookahead_k: int = 0
     lookahead_alpha: float = 0.5
-    # v3 research options. All remain inert under their defaults.
-    # AUTHOR-DECISION: select paper conflict granularity.
+    # Experimental v3 options. All remain inert under their defaults.
     conflict_granularity: str = "global"
-    # AUTHOR-DECISION: select whether the trust-region bound is evaluated.
     trust_region_ratio: float = 0.0
-    # AUTHOR-DECISION: select the opponent-ensemble schedule.
     opponent_ensemble: bool = False
     opponent_ensemble_momentum_weight: float = 0.5
     opponent_ensemble_schedule_steps: int = 0
-    # AUTHOR-DECISION: select the correction/preconditioner composition order.
     correction_preconditioning_order: str = "legacy"
-    # AUTHOR-DECISION: select whether deterministic mode is used in experiments.
+    # Ordered reductions are implemented by the NumPy reference engine only.
     deterministic: bool = False
     native_fused: bool = False
     native: str = "auto"
@@ -188,7 +184,10 @@ class NEATConfig:
 
     def as_keras_kwargs(self) -> dict[str, float | bool | str]:
         """Return keyword arguments suitable for constructing `NEAT`."""
-        return self.as_dict()
+        payload = self.as_dict()
+        payload.pop("native")
+        payload.pop("native_fused")
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

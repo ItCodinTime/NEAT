@@ -185,9 +185,7 @@ def run_adaptive_neat_lightweight_benchmark() -> dict:
                 "fine_tune": None,
                 "threshold": direct_search.threshold,
                 "report": (
-                    direct_search.report.as_dict()
-                    if direct_search.report
-                    else None
+                    direct_search.report.as_dict() if direct_search.report else None
                 ),
                 "test_loss": direct_loss,
                 "test_accuracy": direct_acc,
@@ -267,9 +265,7 @@ def run_adaptive_neat_lightweight_benchmark() -> dict:
 
 def main() -> None:
     result = run_adaptive_neat_lightweight_benchmark()
-    out = Path(
-        f"benchmarks/results/adaptive_neat_lightweight_{result['date']}.json"
-    )
+    out = Path(f"benchmarks/results/adaptive_neat_lightweight_{result['date']}.json")
     out.write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2))
 

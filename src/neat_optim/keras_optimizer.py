@@ -6,6 +6,7 @@ import keras
 from keras import ops
 
 from neat_optim.config import NEATConfig
+from neat_optim.exceptions import ConfigurationError
 
 
 @keras.saving.register_keras_serializable(package="neat_optim")
@@ -103,6 +104,19 @@ class NEAT(keras.optimizers.Optimizer):
             deterministic=deterministic,
             native="never",
         )
+        if config.deterministic:
+            raise ConfigurationError(
+                "deterministic ordered reductions are available only in the "
+                "NumPy reference engine"
+            )
+        if (
+            config.spec_version == "nce_spec_v3"
+            and config.conflict_granularity == "global"
+        ):
+            raise ConfigurationError(
+                "global conflict granularity requires neat_group_step_reference; "
+                "Keras updates one parameter tensor at a time"
+            )
         super().__init__(
             learning_rate=learning_rate,
             # NEAT applies weight decay explicitly inside update_step so the

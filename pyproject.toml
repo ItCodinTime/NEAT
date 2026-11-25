@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "neat-optim"
-version = "0.1.0.dev0"
+version = "1.0.0"
 description = "Nash-Equilibrium Adaptive Training for Keras and scientific Python workflows"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["deep-learning", "optimizer", "keras", "optimization", "training"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: Apache Software License",
@@ -90,7 +90,10 @@ sdist.include = [
   "CHANGELOG.md",
   "CONTRIBUTING.md",
   "CODE_OF_CONDUCT.md",
+  "CITATION.cff",
+  "GOVERNANCE.md",
   "SECURITY.md",
+  "SUPPORT.md",
   "mkdocs.yml",
 ]
 build-dir = "build/{wheel_tag}"
@@ -137,6 +140,21 @@ skip_covered = false
 python_version = "3.10"
 strict = true
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+  "neat_optim",
+  "neat_optim.callbacks",
+  "neat_optim.compaction",
+  "neat_optim.keras_optimizer",
+  "neat_optim.torch_lion",
+  "neat_optim.torch_multitask",
+  "neat_optim.torch_optimizer",
+  "neat_optim.training.tensorflow_players",
+]
+# Framework adapters intentionally accept dynamically typed Keras, TensorFlow,
+# and PyTorch objects. The framework-independent engine remains strict.
+ignore_errors = true
 
 [tool.cibuildwheel]
 build = ["cp310-*", "cp311-*", "cp312-*", "cp313-*"]

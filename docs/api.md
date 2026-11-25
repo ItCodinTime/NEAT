@@ -11,7 +11,7 @@ Use this when training a Keras model through `model.compile(...)`.
 Important constructor arguments:
 
 - `learning_rate`: step size
-- `alpha`: scale of the Nash correction estimate
+- `alpha`: scale of the bounded conflict correction
 - `beta`: momentum mixing factor
 - `nce_mode`: one of `projection`, `cosine`, or `off`
 - `weight_decay`: weight decay coefficient

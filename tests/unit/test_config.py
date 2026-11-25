@@ -66,6 +66,12 @@ def test_valid_config_round_trip() -> None:
     assert payload["lookahead_alpha"] == pytest.approx(0.4)
 
 
+def test_keras_kwargs_exclude_native_engine_controls() -> None:
+    payload = NEATConfig(native="force", native_fused=True).as_keras_kwargs()
+    assert "native" not in payload
+    assert "native_fused" not in payload
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

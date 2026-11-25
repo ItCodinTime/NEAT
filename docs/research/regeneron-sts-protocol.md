@@ -53,7 +53,7 @@ runs use seeds `7, 11, 19, 23, 29`.
 - **MGDA** computes the exact minimum-norm convex combination for two task
   gradients and uses Adam as the transport optimizer. No gradient normalization
   is applied.
-- **NEAT base** uses the Nash correction with `alpha=0.25`, `beta=0.9`, and the
+- **NEAT base** uses the bounded conflict correction with `alpha=0.25`, `beta=0.9`, and the
   momentum opponent. Adaptive alpha, adaptive preconditioning, Lion transport,
   Lookahead, gradient centralization, Nesterov momentum, conflict thresholding,
   and warmup are all off.

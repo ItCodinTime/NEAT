@@ -1,19 +1,26 @@
-name: wheels
+name: wheel-preflight
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+
+permissions:
+  contents: read
 
 jobs:
-  build_wheels:
+  build-wheels:
+    name: Wheels (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v6
-      - uses: pypa/cibuildwheel@v2.21.3
+      - uses: actions/checkout@v7
+      - uses: pypa/cibuildwheel@v4.3.5
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: wheels-${{ runner.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error

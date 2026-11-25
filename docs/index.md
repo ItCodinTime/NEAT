@@ -10,6 +10,8 @@ conflict correction term. The repository is structured so the update rule can
 be reasoned about independently of Keras, validated in NumPy, and optionally
 accelerated with a native CPU extension.
 
+NEAT is listed in the official [Keras ecosystem](https://keras.io/getting_started/ecosystem/#neat).
+
 When the current gradient conflicts with the optimizer's accumulated opponent
 signal, NEAT reduces the conflicting component instead of overwriting or
 blending it away.
@@ -34,7 +36,7 @@ The update rule is kept in a versioned NumPy reference engine, separate from Ker
 
 ## Design Principles
 
-**Explicit math.** The update rule is written as a versioned specification in `docs/research/math-spec.md` and implemented exactly in `engine/reference.py`. The Keras optimizer calls into the same logic rather than reimplementing it.
+**Explicit math.** The update rule is written as a versioned specification in `docs/research/math-spec.md` and implemented in `engine/reference.py`. Framework adapters are tested against the reference engine over their supported feature sets.
 
 **Framework independence.** The core algorithm depends only on NumPy. Keras, TensorFlow, and PyTorch are optional. This makes the algorithm testable without a GPU or a large framework stack.
 

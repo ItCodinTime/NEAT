@@ -32,10 +32,10 @@ tracks its own conflict, gradient-noise, and alignment signals, so early and
 late layers can receive different effective correction strengths without
 adding a new layer registry.
 
-The diagonal preconditioner is a cheap Fisher/Hessian-diagonal approximation
-based on the gradient second moment. It gives NEAT a second-order element while
-staying compatible with Keras optimizer state and the NumPy reference engine.
-It should not be described as full Newton, exact Hessian, or exact Sophia.
+The diagonal preconditioner is an Adam-style second-moment accumulator. It
+rescales coordinates using recent squared gradients while staying compatible
+with Keras optimizer state and the NumPy reference engine. It is not a Fisher,
+Hessian, Newton, or other second-order method.
 
 The benchmark diagnostics now report mean conflict ratio, mean correction
 ratio, mean update alignment, mean opponent norm, and the fraction of steps

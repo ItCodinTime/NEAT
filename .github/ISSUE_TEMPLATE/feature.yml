@@ -1,9 +1,19 @@
 name: Feature Request
 description: Propose a feature or extension for NEAT
+title: "[Feature]: "
+labels: [enhancement]
 body:
   - type: textarea
+    id: motivation
     attributes:
       label: Motivation
+      description: Explain the user problem and why existing APIs do not solve it.
+    validations:
+      required: true
   - type: textarea
+    id: proposal
     attributes:
       label: Proposed API or behavior
+      description: Show the intended behavior, including compatibility considerations.
+    validations:
+      required: true

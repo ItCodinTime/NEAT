@@ -11,3 +11,4 @@ data/
 benchmark-runs/
 __pycache__/
 *.pyc
+*.tfevents.*

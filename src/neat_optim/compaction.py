@@ -235,12 +235,9 @@ def search_compact_dense_model(
             continue
         candidate_param_count = report.compacted_param_count
         candidate_nonzero_count = report.compacted_nonzero_count
-        if (
-            candidate_param_count < best_param_count
-            or (
-                candidate_param_count == best_param_count
-                and candidate_nonzero_count < best_nonzero_count
-            )
+        if candidate_param_count < best_param_count or (
+            candidate_param_count == best_param_count
+            and candidate_nonzero_count < best_nonzero_count
         ):
             best_model = compacted
             best_param_count = candidate_param_count

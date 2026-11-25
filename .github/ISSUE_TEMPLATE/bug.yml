@@ -1,9 +1,27 @@
 name: Bug Report
 description: Report a reproducible bug in NEAT
+title: "[Bug]: "
+labels: [bug]
 body:
   - type: textarea
+    id: description
     attributes:
       label: What happened?
+      description: Describe the actual and expected behavior.
+    validations:
+      required: true
   - type: textarea
+    id: reproduction
     attributes:
       label: Reproduction
+      description: Provide the smallest code sample that reproduces the problem.
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Include NEAT, Python, framework, and backend versions.
+    validations:
+      required: true

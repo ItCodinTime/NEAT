@@ -7,8 +7,8 @@ Spec version: `nce_spec_v2`
 Per trainable tensor:
 
 - `m_t`: momentum-like running state
-- `nce_t`: last Nash Correction Estimate
-- `v_t`: optional diagonal second-moment / Fisher-style accumulator
+- `nce_t`: last bounded conflict-correction tensor
+- `v_t`: optional Adam-style diagonal second-moment accumulator
 - `s_t`: optional lookahead slow parameter
 - `rho_t`: EMA of measured conflict
 - `eta_t`: EMA of gradient noise
@@ -58,8 +58,8 @@ p_t = sqrt(v_t) + eps
 
 The step update is divided by `p_t`. If `precondition_nce=True`, the conflict
 correction is computed in the preconditioned space and mapped back before the
-momentum update. This is a cheap diagonal curvature approximation; it is not a
-full Hessian method.
+momentum update. This rescales coordinates using observed squared gradients; it
+is not a Hessian or curvature estimate.
 
 When `adaptive_alpha=True`:
 
@@ -93,7 +93,7 @@ theta_t   = s_t
 ## Invariants
 
 - all norms are computed in `float32` or higher precision
-- if `||m_{t-1}||` is effectively zero, the NCE term is zero
+- if the selected opponent proxy has effectively zero norm, the correction is zero
 - the NCE vector is clipped to `nce_clip_ratio * ||g_t||`
 - `nce_mode="off"` disables the correction term entirely
 - all new research modes default to off, preserving the original update

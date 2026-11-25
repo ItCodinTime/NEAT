@@ -1,18 +1,14 @@
-# v3 author decisions
+# Experimental v3 status
 
-The following choices require the author’s scientific judgment. Engineering
-keeps each unresolved algorithm option off by default.
+`nce_spec_v3` is an opt-in research surface. It does not change the stable v2 default.
 
-- [ ] Select which v3 algorithm options, if any, become defaults.
-- [ ] Select the PCGrad/CAGrad task settings used in the paper.
-- [ ] Select baseline learning-rate and weight-decay grids.
-- [ ] Select ablation knob values and synthetic regimes shown in the paper.
-- [ ] Select the opponent-ensemble mixing schedule.
-- [ ] Select the correction-aware preconditioning composition.
-- [ ] AUTHOR-DECISION: select paper conflict granularity.
-- [ ] AUTHOR-DECISION: select whether the trust-region bound is evaluated.
-- [ ] AUTHOR-DECISION: select the opponent-ensemble schedule.
-- [ ] AUTHOR-DECISION: select the correction/preconditioner composition order.
-- [ ] AUTHOR-DECISION: select whether deterministic mode is used in experiments.
-- [ ] Interpret benchmark, ablation, regime-map, and overhead results.
-- [ ] Write and verify every scientific claim and related-work comparison.
+The NumPy reference engine implements global and per-parameter conflict granularity,
+trust-region correction bounds, opponent ensembles, correction/preconditioner ordering,
+and explicitly ordered deterministic reductions. Keras and PyTorch adapters operate one
+parameter tensor at a time, so they reject global granularity. They also reject ordered
+deterministic reductions, which are reference-engine-only.
+
+No v3 option is promoted as a default or included in headline performance claims. Promotion
+requires a committed protocol, a correction-off control, equal tuning budgets for every
+optimizer, cross-adapter parity where the semantics are implementable, and results that
+transfer across more than one workload.

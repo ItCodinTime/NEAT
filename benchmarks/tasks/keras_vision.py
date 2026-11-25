@@ -122,12 +122,12 @@ def _build_model() -> keras.Sequential:
 
 
 def build_default_optimizer_specs() -> tuple[OptimizerSpec, ...]:
-    """Return the baseline optimizer set plus the tuned adaptive NEAT."""
+    """Return the fixed recipes used by the historical exploratory study."""
     return (
         OptimizerSpec("sgd_momentum", "sgd_momentum", {"learning_rate": 1e-2}),
         OptimizerSpec("adam", "adam", {"learning_rate": 1e-3}),
         OptimizerSpec(
-            "neat_adaptive_best",
+            "neat_adaptive",
             "neat",
             {
                 "learning_rate": 8e-3,
@@ -337,9 +337,7 @@ def run_vision_optimizer_suite(
     for dataset_name, data in datasets.items():
         for spec in specs:
             for seed in config.seeds:
-                trial_results.append(
-                    _run_trial(dataset_name, spec, seed, data, config)
-                )
+                trial_results.append(_run_trial(dataset_name, spec, seed, data, config))
 
     return {
         "task": "keras_vision_standard",

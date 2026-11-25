@@ -5,60 +5,132 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Format
+        run: ruff format --check .
+      - name: Type check framework-independent core
+        run: mypy src/neat_optim
+
   test:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
       - name: Install
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-      - name: Lint
-        run: ruff check .
+        run: python -m pip install -e ".[dev]"
       - name: Test
         run: pytest
 
   keras-integration:
+    name: Keras integration
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,keras]"
-          pip install tensorflow
+          python -m pip install -e ".[dev,keras]"
+          python -m pip install tensorflow
       - name: Keras integration tests
-        run: pytest tests/integration/test_keras_optimizer.py -q
+        run: pytest tests/integration -q
       - name: Keras example smoke test
         run: python examples/keras_manual_apply.py
 
-  package-build:
+  keras-backends:
+    name: Keras backend (${{ matrix.backend }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: jax
+            runtime: "jax[cpu]"
+          - backend: torch
+            runtime: torch
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e ".[dev,keras]" "${{ matrix.runtime }}"
+      - name: Keras fit smoke test
+        env:
+          KERAS_BACKEND: ${{ matrix.backend }}
+        run: python examples/keras_mlp.py
+      - name: Direct PyTorch adapter tests
+        if: matrix.backend == 'torch'
+        run: pytest tests/unit/test_torch_optimizer.py tests/unit/test_baselines.py -q
+
+  package-build:
+    name: Package build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
       - name: Build distributions
         run: |
-          python -m pip install --upgrade pip
-          pip install build
-          rm -rf build dist
+          python -m pip install build
           python -m build
       - name: Smoke install wheel
         run: |
           python -m venv /tmp/neat-wheel-smoke
-          WHEEL="$(find dist -maxdepth 1 -name '*.whl' | head -n 1)"
+          WHEEL="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
           test -n "$WHEEL"
           /tmp/neat-wheel-smoke/bin/pip install "$WHEEL"
           /tmp/neat-wheel-smoke/bin/python scripts/smoke_install.py
+
+  required:
+    name: CI required
+    if: always()
+    needs: [quality, test, keras-integration, keras-backends, package-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm required jobs passed
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          TEST: ${{ needs.test.result }}
+          KERAS: ${{ needs.keras-integration.result }}
+          BACKENDS: ${{ needs.keras-backends.result }}
+          PACKAGE: ${{ needs.package-build.result }}
+        run: |
+          test "$QUALITY" = success
+          test "$TEST" = success
+          test "$KERAS" = success
+          test "$BACKENDS" = success
+          test "$PACKAGE" = success

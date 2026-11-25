@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 
 from neat_optim.config import NEATConfig
@@ -142,7 +144,9 @@ def _opponent_signal(
         if config.opponent_ensemble_schedule_steps:
             progress = min(1.0, state.step / config.opponent_ensemble_schedule_steps)
             weight = weight + ((1.0 - weight) * progress)
-        return (np.float32(weight) * momentum) + (np.float32(1.0 - weight) * ema)
+        return as_float32(
+            (np.float32(weight) * momentum) + (np.float32(1.0 - weight) * ema)
+        )
     if config.opponent_source == "blended":
         momentum = as_float32(state.momentum)
         ema = (
@@ -151,13 +155,17 @@ def _opponent_signal(
             else as_float32(state.gradient_ema)
         )
         blend = np.float32(config.opponent_blend)
-        return (blend * momentum) + ((np.float32(1.0) - blend) * ema)
+        return as_float32((blend * momentum) + ((np.float32(1.0) - blend) * ema))
     if config.opponent_source == "previous_gradient":
         previous = state.previous_gradient
         return np.zeros_like(gradient) if previous is None else as_float32(previous)
     if config.opponent_source == "gradient_ema":
-        ema = state.gradient_ema
-        return np.zeros_like(gradient) if ema is None else as_float32(ema)
+        gradient_ema = state.gradient_ema
+        return (
+            np.zeros_like(gradient)
+            if gradient_ema is None
+            else as_float32(gradient_ema)
+        )
     return as_float32(state.momentum)
 
 
@@ -450,9 +458,15 @@ def neat_group_step_reference(
         start, end = boundaries[index], boundaries[index + 1]
 
         def split(
-            name: str, start: int = start, end: int = end, shape=shape
+            name: str,
+            start: int = start,
+            end: int = end,
+            shape: tuple[int, ...] = shape,
         ) -> np.ndarray:
-            return getattr(combined.state, name)[start:end].reshape(shape).copy()
+            value = cast(np.ndarray | None, getattr(combined.state, name))
+            if value is None:
+                raise ValueError(f"combined state field {name!r} is missing")
+            return as_float32(np.reshape(value[start:end], shape).copy())
 
         state = ArrayState(
             momentum=split("momentum"),

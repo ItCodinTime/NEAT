@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use NEAT in research, please cite this software and the archived release."
+type: software
+title: "NEAT: Nash-Equilibrium Adaptive Training"
+version: 1.0.0
+date-released: 2026-11-24
+license: Apache-2.0
+repository-code: "https://github.com/ItCodinTime/NEAT"
+url: "https://github.com/ItCodinTime/NEAT"
+authors:
+  - name: "NEAT Contributors"

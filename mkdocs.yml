@@ -12,26 +12,18 @@ nav:
   - Statistics: statistics.md
   - Reproduction: reproduction.md
   - Related Work: related_work.md
-  - v3 Decisions: v3_decisions.md
-  - AI Assistance Log: ai_assistance_log.md
   - Research:
       - Math Spec: research/math-spec.md
       - Algorithm: research/algorithm.md
       - Player-Aware Mode: research/player-aware.md
       - Benchmarks: research/benchmarks.md
       - Validation-locked protocol: research/validation-locked-benchmark-protocol.md
-      - Final Vultr validation suite: research/vultr-final-validation-suite-2026-07-31.md
-      - Vultr locked-run ledger 2026-08-02: research/vultr-locked-run-ledger-2026-08-02.md
-      - Industry benchmark matrix: research/industry-benchmark-matrix.md
-      - Benchmark deadline handoff 2026-08-03: research/benchmark-deadline-handoff-2026-08-03.md
       - Benchmark Plan: research/benchmark-plan.md
-      - Regeneron STS Protocol: research/regeneron-sts-protocol.md
       - Task-aware NEAT v2: research/task-aware-neat-v2.md
-      - Diagnostics and Evidence Roadmap: research/diagnostics-and-evidence-roadmap.md
-      - Regeneron STS Journal: research/sts-experiment-journal.md
       - CIFAR-10 ResNet-18 MPS Study: research/cifar10-resnet18-mps-2026-06-29.md
-      - Benchmark Run Status 2026-07-28: research/benchmark-run-status-2026-07-28.md
+      - Experimental v3 status: v3_decisions.md
   - Contributing:
       - Development: contributing/development.md
       - Architecture: contributing/architecture.md
       - Release: contributing/release.md
+      - GitHub settings: contributing/github-settings.md

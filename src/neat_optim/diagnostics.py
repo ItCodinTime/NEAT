@@ -83,9 +83,10 @@ def write_training_report(
     numeric_rows = _numeric_rows(rows)
     latest = _diagnostic_snapshot(numeric_rows[-1]) if numeric_rows else {}
     interpretation = diagnose_snapshot(latest)
+    report_metadata = dict(metadata or {})
     payload = {
         "schema_version": 1,
-        "metadata": dict(metadata or {}),
+        "metadata": report_metadata,
         "epochs": numeric_rows,
         "interpretation": interpretation,
         "claim_limit": (
@@ -105,7 +106,7 @@ def write_training_report(
         + "</tr>"
         for row in numeric_rows
     )
-    title = html.escape(str(payload["metadata"].get("title", "NEAT training report")))
+    title = html.escape(str(report_metadata.get("title", "NEAT training report")))
     status = html.escape(str(interpretation["status"]).upper())
     explanation = html.escape(str(interpretation["explanation"]))
     claim_limit = html.escape(str(payload["claim_limit"]))

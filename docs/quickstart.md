@@ -21,7 +21,7 @@ pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" to
 ### With JAX backend
 
 ```bash
-pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" jax
+pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" "jax[cpu]"
 ```
 
 ### NumPy core only (no Keras required)

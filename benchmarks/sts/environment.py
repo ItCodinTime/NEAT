@@ -50,13 +50,13 @@ def main(argv=None) -> None:
         "python": sys.version,
         "platform": platform.platform(),
         "machine": platform.machine(),
-        "hostname": platform.node(),
+        "hostname": "redacted",
         "packages": package_versions(
             ("neat-optim", "numpy", "torch", "torchvision", "scipy", "matplotlib")
         ),
         "git_sha": command_output(["git", "rev-parse", "HEAD"]).strip(),
         "git_status": command_output(["git", "status", "--porcelain"]),
-        "uname": command_output(["uname", "-a"]),
+        "uname": command_output(["uname", "-a"]).replace(platform.node(), "redacted"),
         "cpu": command_output(["lscpu"]),
         "memory": command_output(["free", "-h"]),
         "disk": command_output(["df", "-h", "/"]),

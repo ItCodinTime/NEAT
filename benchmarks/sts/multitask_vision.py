@@ -626,7 +626,7 @@ def main(argv=None) -> None:
             "mgda": "MGDA-combined gradient relative to raw task mean",
             "lion": "identity correction before published Lion transport",
             "neat": (
-                "Nash correction relative to the raw gradient before momentum transport"
+                "NEAT correction relative to the raw gradient before momentum transport"
             ),
             "task_neat": (
                 "global shared-task soft projection relative to the raw task mean"

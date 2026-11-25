@@ -8,15 +8,18 @@
 when gradients fight each other and applies a bounded correction before each step.
 It runs on TensorFlow, JAX and PyTorch.
 
+NEAT is listed in the official [Keras ecosystem](https://keras.io/getting_started/ecosystem/#neat).
+
 <br>
 
 [![CI](https://github.com/ItCodinTime/NEAT/actions/workflows/ci.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/ci.yml)
-[![Keras Integration](https://github.com/ItCodinTime/NEAT/actions/workflows/keras-integration.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/keras-integration.yml)
+[![Docs](https://github.com/ItCodinTime/NEAT/actions/workflows/docs.yml/badge.svg)](https://github.com/ItCodinTime/NEAT/actions/workflows/docs.yml)
+[![Keras ecosystem](https://img.shields.io/badge/Keras-ecosystem-D00000?logo=keras&logoColor=white)](https://keras.io/getting_started/ecosystem/#neat)
 [![Keras 3](https://img.shields.io/badge/Keras-3-D00000?logo=keras&logoColor=white)](#keras-3-every-backend)
 [![Backends](https://img.shields.io/badge/backends-TensorFlow%20|%20JAX%20|%20PyTorch-555)](#keras-3-every-backend)
 [![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0.dev0-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](CHANGELOG.md)
 
 [**Documentation**][docs] · [Installation][docs-install] · [Keras guide][docs-keras] · [API][docs-api] · [Benchmarks][docs-benchmarks]
 
@@ -54,7 +57,6 @@ print(optimizer.diagnostic_snapshot())
 
 - [Why NEAT](#why-neat)
 - [Keras 3, every backend](#keras-3-every-backend)
-- [Built for the Google DeepMind stack](#built-for-the-google-deepmind-stack)
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [Choose a mode](#choose-a-mode)
@@ -80,8 +82,8 @@ finds conflict, it removes the conflicting component before the momentum update.
 - **observable**: every run reports how often and how strongly the correction fired
 
 The update math lives in a **versioned NumPy reference engine**, fully independent of Keras.
-The Keras optimizer is a thin adapter on top of it, and an optional C++ CPU extension drops in
-behind the same semantics. Parity tests keep all three in agreement.
+The Keras and PyTorch adapters are checked against that reference over their supported
+feature sets, and an optional C++ CPU extension accelerates the stable core subset.
 
 | | |
 |---|---|
@@ -101,8 +103,8 @@ code runs on any Keras backend. Pick one with `KERAS_BACKEND`:
 | Backend | Install | Status |
 |---|---|---|
 | **TensorFlow** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" tensorflow` | Exercised in CI (Keras integration workflow) |
-| **JAX** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" "jax[cpu]"` | Smoke-tested locally: `fit()` + diagnostics callback |
-| **PyTorch** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch` | Smoke-tested locally: `fit()` + diagnostics callback |
+| **JAX** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" "jax[cpu]"` | Exercised in CI (`fit()` smoke test) |
+| **PyTorch** | `pip install "neat-optim[keras] @ git+https://github.com/ItCodinTime/NEAT.git" torch` | Exercised in CI (`fit()` + direct-adapter tests) |
 
 ```bash
 KERAS_BACKEND=jax python train.py
@@ -111,7 +113,7 @@ KERAS_BACKEND=jax python train.py
 > Player-aware training (`player_train_step`) uses `tf.GradientTape`, so it requires the
 > TensorFlow backend.
 
-The Keras integration goes beyond `compile()`:
+Keras integration:
 
 - **Callbacks**: `NEATDiagnosticsCallback` adds `neat_*` metrics to `History`, writes TensorBoard
   scalars, and can export a JSON or HTML training report.
@@ -120,37 +122,10 @@ The Keras integration goes beyond `compile()`:
 
 ---
 
-## Built for the Google DeepMind stack
-
-NEAT targets the tools that Google DeepMind's open ecosystem is built on:
-
-| | What NEAT ships |
-|---|---|
-| **JAX** | Runs as a Keras 3 optimizer on the JAX backend; see [Keras 3, every backend](#keras-3-every-backend). |
-| **Gemma** | The LLM fine-tuning harness supports `google/gemma-2b` (LoRA, AMP, gradient accumulation) on Alpaca and GLUE SST-2. |
-| **MuJoCo** | The reinforcement-learning harness trains SAC policies on HalfCheetah-v5, Hopper-v5 and Walker2d-v5 with NEAT or AdamW. |
-
-```bash
-# Gemma-2B LoRA fine-tuning on Alpaca (requires Hugging Face auth for the Gemma weights)
-python -m benchmarks.torch_suite.language_model \
-    --task alpaca --model google/gemma-2b \
-    --optimizer neat --lora --epochs 1 --lr 2e-5 \
-    --batch-size 4 --gradient-accumulation 8 --amp
-```
-
-These are runnable harnesses. Gemma-scale and MuJoCo results have not been published yet; see
-[Status and limitations](#status-and-limitations). Setup details are in the
-[PyTorch benchmark guide](benchmarks/torch_suite/README.md).
-
-<sub>NEAT is an independent open-source project. It is not affiliated with or endorsed by
-Google or Google DeepMind. Gemma, JAX and MuJoCo are referenced only as tools NEAT works with.</sub>
-
----
-
 ## Installation
 
 > [!IMPORTANT]
-> **Not on PyPI yet.** Install from GitHub as shown below. pip builds the native C++
+> **Source installs are currently supported from GitHub.** pip builds the native C++
 > extension during install, so you need a C++ compiler (`xcode-select --install` on
 > macOS, `build-essential` on Debian/Ubuntu).
 
@@ -391,23 +366,23 @@ The correction is clipped: `‖nce‖ ≤ nce_clip_ratio · ‖g‖`. If there i
 and NEAT degrades to standard momentum SGD. With `adaptive_alpha=True`, `α` responds to
 conflict, gradient-noise, and alignment trends.
 
-It is *Nash-inspired* because the optimizer reacts to directional conflict between the
-current gradient and an opponent proxy. The full specification, including invariant proofs and
-a worked numerical example, is in [`docs/research/math-spec.md`](docs/research/math-spec.md).
+It is *Nash-inspired* because the optimizer interprets directional disagreement as an
+interaction between two signals. It does not compute a Nash equilibrium or inherit the
+guarantees of Nash-bargaining methods. The executable specification and a worked numerical
+example are in [`docs/research/math-spec.md`](docs/research/math-spec.md).
 → [Algorithm][docs-algorithm]
 
 <details>
 <summary><strong>Spec versions (<code>nce_spec_v2</code> default, <code>nce_spec_v3</code> opt-in)</strong></summary>
 
-`nce_spec_v2` is the default and its behavior is frozen. The v3 work is additive: v3 research
-options are not promoted without an explicit author decision and full cross-engine parity
-coverage.
+`nce_spec_v2` is the stable default. The v3 surface is opt-in research functionality and is
+not used for headline performance claims.
 
 To select the additive specification, pass `spec_version="nce_spec_v3"`. Default-off v3
-controls cover parameter-local conflict granularity, an L2 trust-region correction bound,
+controls cover conflict granularity, an L2 trust-region correction bound,
 scheduled momentum/gradient-EMA opponent ensembles, correction/preconditioner composition
-order, and deterministic reference reductions. Existing constructors that omit `spec_version`
-continue to use v2 behavior.
+order, and deterministic reference reductions. Global granularity and ordered deterministic
+reductions are reference-engine-only; framework adapters reject those combinations explicitly.
 
 </details>
 
@@ -450,7 +425,7 @@ continue to use v2 behavior.
 | `adaptive_correction_decay` | `0.9` | EMA decay for adaptive correction |
 | `adaptive_correction_min_scale` | `1.0` | Lower clamp on adaptive scale |
 | `adaptive_correction_max_scale` | `3.0` | Upper clamp on adaptive scale |
-| `adaptive_preconditioning` | `False` | Diagonal second-moment preconditioner (Fisher/Hessian-diagonal in spirit) |
+| `adaptive_preconditioning` | `False` | Adam-style diagonal second-moment preconditioner |
 | `second_moment_beta` | `0.999` | Decay for second-moment EMA |
 | `bias_correction` | `False` | Bias-correct momentum and second moment |
 
@@ -490,8 +465,13 @@ continue to use v2 behavior.
 > These are early results. Read them as evidence, not as a claim that NEAT beats every
 > other optimizer.
 
+The short Keras studies below used fixed baseline recipes and an exploratory adaptive-NEAT
+configuration; they are not equal-budget optimizer tuning studies. The validation-locked
+protocol in `docs/research/validation-locked-benchmark-protocol.md` is the standard for future
+comparative claims.
+
 **Short-transfer Keras CNN** (MNIST and Fashion-MNIST, 3 seeds, 2 epochs). Adaptive NEAT
-reaches the best mean test accuracy on both datasets:
+reported the highest mean test accuracy in this exploratory run:
 
 | Dataset | Adaptive NEAT | Adam |
 |---|---|---|
@@ -569,8 +549,9 @@ updates.
 ## Status and limitations
 
 > [!NOTE]
-> **Pre-release (`0.1.0.dev0`).** There is no tagged release yet. The public API is
-> intentionally narrow: these are the pieces that have been validated end-to-end.
+> **Research release (`1.0.0`).** The stable v2 API is intentionally narrow. The
+> optimizer is suitable for experimentation and integration work; published evidence
+> does not establish universal improvement over established optimizers.
 
 | Component | Description |
 |---|---|
@@ -586,7 +567,8 @@ updates.
 
 - The native C++ extension is CPU-only, with no GPU kernel yet.
 - Player-aware mode requires TensorFlow as the Keras backend.
-- CI exercises the TensorFlow backend. JAX and PyTorch backends are smoke-tested, not yet in CI.
+- CI exercises TensorFlow integration, Keras-on-JAX and Keras-on-PyTorch smoke tests,
+  and the direct PyTorch adapter.
 - Published evidence currently consists of small Keras studies plus preliminary CPU PyTorch
   studies. No GPU-scale ImageNet, full foundation-model, or production RL claim is made.
 
@@ -661,8 +643,7 @@ The documentation site at **[NEAT Docs][docs]** covers everything in this README
 | [Development][docs-dev] | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow |
 | [Resources][docs-resources] | [CHANGELOG.md](CHANGELOG.md) | Policies, changelog, contact |
 
-Questions: open a [GitHub issue](https://github.com/ItCodinTime/NEAT/issues) or email
-[gouthamkrishnaronanki@gmail.com](mailto:gouthamkrishnaronanki@gmail.com).
+Questions and support requests belong in [GitHub Issues](https://github.com/ItCodinTime/NEAT/issues).
 
 ---
 
@@ -671,15 +652,14 @@ Questions: open a [GitHub issue](https://github.com/ItCodinTime/NEAT/issues) or 
 [Apache 2.0](LICENSE), which includes an explicit patent grant: the right default for
 optimization infrastructure.
 
-<!-- Docs site links: set DOCS_URL below to the live docs domain (e.g. the Vercel production URL). -->
-[docs]: https://DOCS_URL/docs
-[docs-install]: https://DOCS_URL/docs/installation
-[docs-keras]: https://DOCS_URL/docs/keras
-[docs-modes]: https://DOCS_URL/docs/modes
-[docs-player]: https://DOCS_URL/docs/player-aware
-[docs-api]: https://DOCS_URL/docs/api
-[docs-config]: https://DOCS_URL/docs/configuration
-[docs-algorithm]: https://DOCS_URL/docs/algorithm
-[docs-benchmarks]: https://DOCS_URL/docs/benchmarks
-[docs-dev]: https://DOCS_URL/docs/development
-[docs-resources]: https://DOCS_URL/docs/resources
+[docs]: docs/index.md
+[docs-install]: docs/quickstart.md
+[docs-keras]: docs/quickstart.md
+[docs-modes]: #choose-a-mode
+[docs-player]: docs/research/player-aware.md
+[docs-api]: docs/api.md
+[docs-config]: #configuration
+[docs-algorithm]: docs/research/algorithm.md
+[docs-benchmarks]: docs/research/benchmarks.md
+[docs-dev]: docs/contributing/development.md
+[docs-resources]: CHANGELOG.md

@@ -108,9 +108,9 @@ def active_fraction(array: np.ndarray) -> float:
 
 def update_ema(previous: np.ndarray, current: np.ndarray, decay: float) -> np.ndarray:
     """Return an EMA update in float32."""
-    return (
+    return as_float32(
         (np.float32(decay) * previous) + (np.float32(1.0 - decay) * current)
-    ).astype(np.float32, copy=False)
+    )
 
 
 def centralized_gradient(gradient: np.ndarray) -> np.ndarray:
@@ -119,7 +119,4 @@ def centralized_gradient(gradient: np.ndarray) -> np.ndarray:
     if gradient32.ndim <= 1:
         return gradient32
     axes = tuple(range(gradient32.ndim - 1))
-    return (gradient32 - np.mean(gradient32, axis=axes, keepdims=True)).astype(
-        np.float32,
-        copy=False,
-    )
+    return as_float32(gradient32 - np.mean(gradient32, axis=axes, keepdims=True))

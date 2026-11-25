@@ -179,7 +179,7 @@ def build_default_optimizer_specs() -> tuple[OptimizerSpec, ...]:
         OptimizerSpec("sgd_momentum", "sgd_momentum", {"learning_rate": 1e-2}),
         OptimizerSpec("adam", "adam", {"learning_rate": 1e-3}),
         OptimizerSpec(
-            "neat_adaptive_best",
+            "neat_adaptive",
             "neat",
             {
                 "learning_rate": 8e-3,

@@ -8,6 +8,8 @@ Before `1.0.0`, breaking changes may occur in minor releases.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-24
+
 ### Added
 
 - Optional PyTorch `TorchNEAT` adapter and modern vision, LLM, RL, diffusion,
@@ -97,7 +99,7 @@ Before `1.0.0`, breaking changes may occur in minor releases.
 - `benchmarks/sweep_neat.py` — coarse hyperparameter sweep over NEAT config
 - `benchmarks/compare_optimizers.py` — side-by-side optimizer comparison
 - `examples/minimal_numpy.py` — pure NumPy usage
-- `examples/keras_mlp_tf.py` — standard `model.compile` + `model.fit` usage
+- `examples/keras_mlp.py` — backend-neutral `model.compile` + `model.fit` usage
 - `examples/keras_manual_apply.py` — custom training loop with `apply_gradients`
 - `examples/player_aware_tensorflow.py` — per-example player-aware training
 
