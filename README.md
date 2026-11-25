@@ -8,7 +8,9 @@
 when gradients fight each other and applies a bounded correction before each step.
 It runs on TensorFlow, JAX and PyTorch.
 
-NEAT is listed in the official [Keras ecosystem](https://keras.io/getting_started/ecosystem/#neat).
+**Official Keras ecosystem project:** NEAT is listed on
+[keras.io](https://keras.io/getting_started/ecosystem/#neat) alongside KerasHub, KerasRS,
+KerasTuner, AutoKeras and BayesFlow.
 
 <br>
 
@@ -57,6 +59,7 @@ print(optimizer.diagnostic_snapshot())
 ## Contents
 
 - [Why NEAT](#why-neat)
+- [Official Keras ecosystem integration](#official-keras-ecosystem-integration)
 - [Keras 3, every backend](#keras-3-every-backend)
 - [Installation](#installation)
 - [Quick start](#quick-start)
@@ -93,6 +96,26 @@ feature sets, and an optional C++ CPU extension accelerates the stable core subs
 | **Player-aware mode** | Treat each example, task, or objective head as its own gradient contributor. |
 | **Diagnostics** | `diagnostic_snapshot()` and `NEATDiagnosticsCallback` (Keras `History` + TensorBoard). |
 | **PyTorch adapter** | `neat_optim.TorchNEAT` (install the `[torch]` extra) for the modern PyTorch benchmark suite. |
+
+---
+
+## Official Keras ecosystem integration
+
+NEAT appears in the [Keras ecosystem directory](https://keras.io/getting_started/ecosystem/#neat)
+on keras.io as a Keras-first optimizer library. It is built on public Keras 3 APIs and
+fits into the standard Keras workflow without wrappers or patches:
+
+| Keras feature | How NEAT plugs in |
+|---|---|
+| `keras.optimizers.Optimizer` | `NEAT` subclasses the Keras 3 base optimizer, so it works anywhere a built-in optimizer does |
+| `model.compile` / `model.fit` | Pass `optimizer=NEAT(...)`; no custom training loop needed |
+| `keras.saving` | `NEAT` and `NEATDiagnosticsCallback` are registered serializables (`package="neat_optim"`), so `model.save()` and `keras.models.load_model()` round-trip |
+| `keras.callbacks` | `NEATDiagnosticsCallback` logs `neat_*` metrics to `History` and TensorBoard |
+| Multi-backend Keras | Same code on TensorFlow, JAX and PyTorch via `KERAS_BACKEND` |
+| Custom training steps | `optimizer.apply_gradients(...)` works inside `tf.function` steps |
+
+NEAT is maintained independently of the Keras team. The keras.io listing marks it as a
+Keras ecosystem project, not as part of Keras itself.
 
 ---
 
