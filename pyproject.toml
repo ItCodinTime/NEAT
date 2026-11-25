@@ -125,6 +125,8 @@ select = [
 ]
 
 [tool.ruff.format]
+# Docs code blocks keep hand-aligned examples; newer ruff formats Markdown.
+exclude = ["*.md"]
 quote-style = "double"
 indent-style = "space"
 
