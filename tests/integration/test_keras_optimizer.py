@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
 
-tensorflow = pytest.importorskip("tensorflow")
-keras = pytest.importorskip("keras")
+keras = pytest.importorskip("keras", exc_type=ImportError)
 
 from neat_optim import NEAT, NEATDiagnosticsCallback  # noqa: E402
 from neat_optim.config import NEATConfig  # noqa: E402
@@ -12,7 +11,7 @@ from neat_optim.state import ArrayState  # noqa: E402
 
 
 def _to_numpy(tensor) -> np.ndarray:
-    return tensorflow.convert_to_tensor(tensor).numpy()
+    return keras.ops.convert_to_numpy(tensor)
 
 
 def _run_reference(
@@ -47,7 +46,6 @@ def _run_keras(
 
 
 def test_keras_optimizer_can_apply_gradients() -> None:
-    _ = tensorflow
     variable = keras.Variable([1.0, -2.0], dtype="float32")
     gradient = keras.ops.array([0.5, -0.25], dtype="float32")
     optimizer = NEAT(learning_rate=0.1, alpha=0.25, beta=0.9)
@@ -143,6 +141,31 @@ def test_keras_optimizer_config_round_trip() -> None:
     )
     assert clone.get_config()["deterministic"] is False
     assert clone.get_config()["diagnostic_interval"] == 3
+
+
+def test_keras_model_round_trip_restores_optimizer(tmp_path) -> None:
+    inputs = np.array([[1.0, -1.0], [0.5, 0.25]], dtype=np.float32)
+    targets = np.array([[0.0], [1.0]], dtype=np.float32)
+    model = keras.Sequential(
+        [
+            keras.layers.Input((2,)),
+            keras.layers.Dense(1, use_bias=False, kernel_initializer="ones"),
+        ]
+    )
+    model.compile(optimizer=NEAT(learning_rate=0.01, alpha=0.25), loss="mse")
+    model.train_on_batch(inputs, targets)
+
+    path = tmp_path / "model.keras"
+    model.save(path)
+    restored = keras.saving.load_model(path)
+
+    assert isinstance(restored.optimizer, NEAT)
+    assert restored.optimizer.get_config()["alpha"] == pytest.approx(0.25)
+    assert int(_to_numpy(restored.optimizer.iterations)) == 1
+    np.testing.assert_allclose(_to_numpy(restored(inputs)), _to_numpy(model(inputs)))
+    model.train_on_batch(inputs, targets)
+    restored.train_on_batch(inputs, targets)
+    np.testing.assert_allclose(_to_numpy(restored(inputs)), _to_numpy(model(inputs)))
 
 
 def test_keras_diagnostic_sampling_does_not_change_updates() -> None:
