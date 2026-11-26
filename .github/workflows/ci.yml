@@ -90,6 +90,10 @@ jobs:
         env:
           KERAS_BACKEND: ${{ matrix.backend }}
         run: python examples/keras_mlp.py
+      - name: Keras optimizer integration tests
+        env:
+          KERAS_BACKEND: ${{ matrix.backend }}
+        run: pytest tests/integration/test_keras_optimizer.py -q
       - name: Direct PyTorch adapter tests
         if: matrix.backend == 'torch'
         run: pytest tests/unit/test_torch_optimizer.py tests/unit/test_baselines.py -q

@@ -409,10 +409,11 @@ class NEAT(keras.optimizers.Optimizer):
             self.assign(variable, shrunk)
         if self.prune_threshold:
             threshold = ops.cast(self.prune_threshold, variable.dtype)
+            current = ops.convert_to_tensor(variable)
             pruned = ops.where(
-                ops.abs(variable) < threshold,
-                ops.zeros_like(variable),
-                variable,
+                ops.abs(current) < threshold,
+                ops.zeros_like(current),
+                current,
             )
             self.assign(variable, pruned)
 
@@ -623,7 +624,9 @@ class NEAT(keras.optimizers.Optimizer):
                 ops.cast(self.lookahead_alpha, variable.dtype)
                 * (variable - initialized_slow)
             )
-            synced_variable = ops.where(sync_step, next_slow, variable)
+            synced_variable = ops.where(
+                sync_step, next_slow, ops.convert_to_tensor(variable)
+            )
             synced_slow = ops.where(sync_step, next_slow, initialized_slow)
             self.assign(variable, synced_variable)
             self.assign(slow_weight, synced_slow)
